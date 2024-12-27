@@ -10,15 +10,18 @@ import (
 
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
 	"github.com/stretchr/testify/assert"
-
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/suite"
 )
 
-type SuiteScanner struct{}
+type SuiteScanner struct {
+	suite.Suite
+}
 
-var _ = Suite(&SuiteScanner{})
+func TestSuiteScanner(t *testing.T) {
+	suite.Run(t, new(SuiteScanner))
+}
 
-func (s *SuiteScanner) TestInvalid(c *C) {
+func (s *SuiteScanner) TestInvalid() {
 	for _, test := range [...]string{
 		"0001", "0002", "0003", "0004",
 		"0001asdfsadf", "0004foo",
@@ -32,12 +35,12 @@ func (s *SuiteScanner) TestInvalid(c *C) {
 		r := strings.NewReader(test)
 		sc := pktline.NewScanner(r)
 		_ = sc.Scan()
-		c.Assert(sc.Err(), ErrorMatches, pktline.ErrInvalidPktLen.Error(),
-			Commentf("data = %q", test))
+		s.ErrorContains(sc.Err(), pktline.ErrInvalidPktLen.Error(),
+			fmt.Sprintf("data = %q", test))
 	}
 }
 
-func (s *SuiteScanner) TestDecodeOversizePktLines(c *C) {
+func (s *SuiteScanner) TestDecodeOversizePktLines() {
 	for _, test := range [...]string{
 		"fff1" + strings.Repeat("a", 0xfff1),
 		"fff2" + strings.Repeat("a", 0xfff2),
@@ -47,7 +50,7 @@ func (s *SuiteScanner) TestDecodeOversizePktLines(c *C) {
 		r := strings.NewReader(test)
 		sc := pktline.NewScanner(r)
 		_ = sc.Scan()
-		c.Assert(sc.Err(), IsNil)
+		s.Nil(sc.Err())
 	}
 }
 
@@ -69,37 +72,37 @@ func TestValidPktSizes(t *testing.T) {
 	}
 }
 
-func (s *SuiteScanner) TestEmptyReader(c *C) {
+func (s *SuiteScanner) TestEmptyReader() {
 	r := strings.NewReader("")
 	sc := pktline.NewScanner(r)
 	hasPayload := sc.Scan()
-	c.Assert(hasPayload, Equals, false)
-	c.Assert(sc.Err(), Equals, nil)
+	s.False(hasPayload)
+	s.Equal(nil, sc.Err())
 }
 
-func (s *SuiteScanner) TestFlush(c *C) {
+func (s *SuiteScanner) TestFlush() {
 	var buf bytes.Buffer
 	e := pktline.NewEncoder(&buf)
 	err := e.Flush()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	sc := pktline.NewScanner(&buf)
-	c.Assert(sc.Scan(), Equals, true)
+	s.True(sc.Scan())
 
 	payload := sc.Bytes()
-	c.Assert(len(payload), Equals, 0)
+	s.Len(payload, 0)
 }
 
-func (s *SuiteScanner) TestPktLineTooShort(c *C) {
+func (s *SuiteScanner) TestPktLineTooShort() {
 	r := strings.NewReader("010cfoobar")
 
 	sc := pktline.NewScanner(r)
 
-	c.Assert(sc.Scan(), Equals, false)
-	c.Assert(sc.Err(), ErrorMatches, "unexpected EOF")
+	s.False(sc.Scan())
+	s.ErrorContains(sc.Err(), "unexpected EOF")
 }
 
-func (s *SuiteScanner) TestScanAndPayload(c *C) {
+func (s *SuiteScanner) TestScanAndPayload() {
 	for _, test := range [...]string{
 		"a",
 		"a\n",
@@ -113,20 +116,18 @@ func (s *SuiteScanner) TestScanAndPayload(c *C) {
 		var buf bytes.Buffer
 		e := pktline.NewEncoder(&buf)
 		err := e.EncodeString(test)
-		c.Assert(err, IsNil,
-			Commentf("input len=%x, contents=%.10q\n", len(test), test))
+		s.NoError(err, fmt.Sprintf("input len=%x, contents=%.10q\n", len(test), test))
 
 		sc := pktline.NewScanner(&buf)
-		c.Assert(sc.Scan(), Equals, true,
-			Commentf("test = %.20q...", test))
+		s.True(sc.Scan(), fmt.Sprintf("test = %.20q...", test))
 
 		obtained := sc.Bytes()
-		c.Assert(obtained, DeepEquals, []byte(test),
-			Commentf("in = %.20q out = %.20q", test, string(obtained)))
+		s.Equal([]byte(test), obtained,
+			fmt.Sprintf("in = %.20q out = %.20q", test, string(obtained)))
 	}
 }
 
-func (s *SuiteScanner) TestSkip(c *C) {
+func (s *SuiteScanner) TestSkip() {
 	for _, test := range [...]struct {
 		input    []string
 		n        int
@@ -152,51 +153,49 @@ func (s *SuiteScanner) TestSkip(c *C) {
 		var buf bytes.Buffer
 		e := pktline.NewEncoder(&buf)
 		err := e.EncodeString(test.input...)
-		c.Assert(err, IsNil)
+		s.NoError(err)
 
 		sc := pktline.NewScanner(&buf)
 		for i := 0; i < test.n; i++ {
-			c.Assert(sc.Scan(), Equals, true,
-				Commentf("scan error = %s", sc.Err()))
+			s.True(sc.Scan(), fmt.Sprintf("scan error = %s", sc.Err()))
 		}
-		c.Assert(sc.Scan(), Equals, true,
-			Commentf("scan error = %s", sc.Err()))
+		s.True(sc.Scan(), fmt.Sprintf("scan error = %s", sc.Err()))
 
 		obtained := sc.Bytes()
-		c.Assert(obtained, DeepEquals, test.expected,
-			Commentf("\nin = %.20q\nout = %.20q\nexp = %.20q",
+		s.Equal(test.expected, obtained,
+			fmt.Sprintf("\nin = %.20q\nout = %.20q\nexp = %.20q",
 				test.input, obtained, test.expected))
 	}
 }
 
-func (s *SuiteScanner) TestEOF(c *C) {
+func (s *SuiteScanner) TestEOF() {
 	var buf bytes.Buffer
 	e := pktline.NewEncoder(&buf)
 	err := e.EncodeString("first", "second")
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	sc := pktline.NewScanner(&buf)
 	for sc.Scan() {
 	}
-	c.Assert(sc.Err(), IsNil)
+	s.Nil(sc.Err())
 }
 
 type mockReader struct{}
 
 func (r *mockReader) Read([]byte) (int, error) { return 0, errors.New("foo") }
 
-func (s *SuiteScanner) TestInternalReadError(c *C) {
+func (s *SuiteScanner) TestInternalReadError() {
 	sc := pktline.NewScanner(&mockReader{})
-	c.Assert(sc.Scan(), Equals, false)
-	c.Assert(sc.Err(), ErrorMatches, "foo")
+	s.False(sc.Scan())
+	s.ErrorContains(sc.Err(), "foo")
 }
 
 // A section are several non flush-pkt lines followed by a flush-pkt, which
 // how the git protocol sends long messages.
-func (s *SuiteScanner) TestReadSomeSections(c *C) {
+func (s *SuiteScanner) TestReadSomeSections() {
 	nSections := 2
 	nLines := 4
-	data := sectionsExample(c, nSections, nLines)
+	data := sectionsExample(s, nSections, nLines)
 	sc := pktline.NewScanner(data)
 
 	sectionCounter := 0
@@ -207,9 +206,9 @@ func (s *SuiteScanner) TestReadSomeSections(c *C) {
 		}
 		lineCounter++
 	}
-	c.Assert(sc.Err(), IsNil)
-	c.Assert(sectionCounter, Equals, nSections)
-	c.Assert(lineCounter, Equals, (1+nLines)*nSections)
+	s.Nil(sc.Err())
+	s.Equal(nSections, sectionCounter)
+	s.Equal((1+nLines)*nSections, lineCounter)
 }
 
 // returns nSection sections, each of them with nLines pkt-lines (not
@@ -220,7 +219,7 @@ func (s *SuiteScanner) TestReadSomeSections(c *C) {
 // ...
 // 0000
 // and so on
-func sectionsExample(c *C, nSections, nLines int) io.Reader {
+func sectionsExample(s *SuiteScanner, nSections, nLines int) io.Reader {
 	var buf bytes.Buffer
 	e := pktline.NewEncoder(&buf)
 
@@ -231,9 +230,9 @@ func sectionsExample(c *C, nSections, nLines int) io.Reader {
 			ss = append(ss, line)
 		}
 		err := e.EncodeString(ss...)
-		c.Assert(err, IsNil)
+		s.NoError(err)
 		err = e.Flush()
-		c.Assert(err, IsNil)
+		s.NoError(err)
 	}
 
 	return &buf

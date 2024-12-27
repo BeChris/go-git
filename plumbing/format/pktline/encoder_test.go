@@ -2,32 +2,34 @@ package pktline_test
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
-
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/suite"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+type SuiteEncoder struct {
+	suite.Suite
+}
 
-type SuiteEncoder struct{}
+func TestSuiteEncoder(t *testing.T) {
+	suite.Run(t, new(SuiteEncoder))
+}
 
-var _ = Suite(&SuiteEncoder{})
-
-func (s *SuiteEncoder) TestFlush(c *C) {
+func (s *SuiteEncoder) TestFlush() {
 	var buf bytes.Buffer
 	e := pktline.NewEncoder(&buf)
 
 	err := e.Flush()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	obtained := buf.Bytes()
-	c.Assert(obtained, DeepEquals, pktline.FlushPkt)
+	s.Equal(pktline.FlushPkt, obtained)
 }
 
-func (s *SuiteEncoder) TestEncode(c *C) {
+func (s *SuiteEncoder) TestEncode() {
 	for i, test := range [...]struct {
 		input    [][]byte
 		expected []byte
@@ -75,19 +77,19 @@ func (s *SuiteEncoder) TestEncode(c *C) {
 					"fff0" + strings.Repeat("b", pktline.MaxPayloadSize)),
 		},
 	} {
-		comment := Commentf("input %d = %v\n", i, test.input)
+		comment := fmt.Sprintf("input %d = %v\n", i, test.input)
 
 		var buf bytes.Buffer
 		e := pktline.NewEncoder(&buf)
 
 		err := e.Encode(test.input...)
-		c.Assert(err, IsNil, comment)
+		s.NoError(err, comment)
 
-		c.Assert(buf.Bytes(), DeepEquals, test.expected, comment)
+		s.Equal(test.expected, buf.Bytes(), comment)
 	}
 }
 
-func (s *SuiteEncoder) TestEncodeErrPayloadTooLong(c *C) {
+func (s *SuiteEncoder) TestEncodeErrPayloadTooLong() {
 	for i, input := range [...][][]byte{
 		{
 			[]byte(strings.Repeat("a", pktline.MaxPayloadSize+1)),
@@ -102,17 +104,17 @@ func (s *SuiteEncoder) TestEncodeErrPayloadTooLong(c *C) {
 			[]byte("foo"),
 		},
 	} {
-		comment := Commentf("input %d = %v\n", i, input)
+		comment := fmt.Sprintf("input %d = %v\n", i, input)
 
 		var buf bytes.Buffer
 		e := pktline.NewEncoder(&buf)
 
 		err := e.Encode(input...)
-		c.Assert(err, Equals, pktline.ErrPayloadTooLong, comment)
+		s.Equal(pktline.ErrPayloadTooLong, err, comment)
 	}
 }
 
-func (s *SuiteEncoder) TestEncodeStrings(c *C) {
+func (s *SuiteEncoder) TestEncodeStrings() {
 	for i, test := range [...]struct {
 		input    []string
 		expected []byte
@@ -160,18 +162,18 @@ func (s *SuiteEncoder) TestEncodeStrings(c *C) {
 					"fff0" + strings.Repeat("b", pktline.MaxPayloadSize)),
 		},
 	} {
-		comment := Commentf("input %d = %v\n", i, test.input)
+		comment := fmt.Sprintf("input %d = %v\n", i, test.input)
 
 		var buf bytes.Buffer
 		e := pktline.NewEncoder(&buf)
 
 		err := e.EncodeString(test.input...)
-		c.Assert(err, IsNil, comment)
-		c.Assert(buf.Bytes(), DeepEquals, test.expected, comment)
+		s.NoError(err, comment)
+		s.Equal(test.expected, buf.Bytes(), comment)
 	}
 }
 
-func (s *SuiteEncoder) TestEncodeStringErrPayloadTooLong(c *C) {
+func (s *SuiteEncoder) TestEncodeStringErrPayloadTooLong() {
 	for i, input := range [...][]string{
 		{
 			strings.Repeat("a", pktline.MaxPayloadSize+1),
@@ -186,17 +188,17 @@ func (s *SuiteEncoder) TestEncodeStringErrPayloadTooLong(c *C) {
 			"foo",
 		},
 	} {
-		comment := Commentf("input %d = %v\n", i, input)
+		comment := fmt.Sprintf("input %d = %v\n", i, input)
 
 		var buf bytes.Buffer
 		e := pktline.NewEncoder(&buf)
 
 		err := e.EncodeString(input...)
-		c.Assert(err, Equals, pktline.ErrPayloadTooLong, comment)
+		s.Equal(pktline.ErrPayloadTooLong, err, comment)
 	}
 }
 
-func (s *SuiteEncoder) TestEncodef(c *C) {
+func (s *SuiteEncoder) TestEncodef() {
 	format := " %s %d\n"
 	str := "foo"
 	d := 42
@@ -205,8 +207,8 @@ func (s *SuiteEncoder) TestEncodef(c *C) {
 	e := pktline.NewEncoder(&buf)
 
 	err := e.Encodef(format, str, d)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	expected := []byte("000c foo 42\n")
-	c.Assert(buf.Bytes(), DeepEquals, expected)
+	s.Equal(expected, buf.Bytes())
 }
