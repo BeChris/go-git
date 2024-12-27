@@ -7,7 +7,7 @@ import (
 )
 
 func Test(t *testing.T) {
-	for testIdx, testData := range []struct {
+	for _, testData := range []struct {
 		lines    []string
 		expected []string
 	}{
@@ -156,6 +156,12 @@ func Test(t *testing.T) {
 				"SetupTest()",
 			},
 		},
+		{
+			[]string{`comment := Commentf("input %d = %v\n", i, test.input)`},
+			[]string{`comment := fmt.Sprintf("input %d = %v\n", i, test.input)`},
+		},
+
+		//
 
 		// SetUpSuite(c *C)
 
@@ -175,6 +181,6 @@ func Test(t *testing.T) {
 	} {
 		modifiedContent := modifyFile(testData.lines)
 
-		assert.Equal(t, testData.expected, modifiedContent, "testIdx", testIdx)
+		assert.Equal(t, testData.expected, modifiedContent, testData.lines)
 	}
 }

@@ -48,6 +48,8 @@ func modifyFile(content []string) []string {
 		map[string]string{
 			`c\.Assert\(err, IsNil, (.+)\)`:             `s.NoError(err, $1)`,
 			`c\.Assert\(len\(([^)]+)\), Equals, (.+)\)`: `s.Len($1, $2)`,
+			`Commentf\(([^)]+)\)`:                       `fmt.Sprintf($1)`,
+			`c\.Assert\((.+), Equals, (.+), (.+)\)`:     `s.Equal($2, $1, $3)`,
 		},
 		map[string]string{
 			`c\.Assert\(err, Equals, (.+)\)`:        `s.Equal(err, $1)`,
@@ -60,7 +62,6 @@ func modifyFile(content []string) []string {
 			`c\.Assert\((.+), NotNil\)`:             `s.NotNil($1)`,
 		},
 		map[string]string{
-			`c\.Assert\((.+), Equals, (.+), (.+)\)`:      `s.Equal($2, $1, $3)`,
 			`c\.Assert\((.+), Equals, (.+)\)`:            `s.Equal($2, $1)`,
 			`c\.Assert\((.+), Not\(Equals\), (.+)\)`:     `s.NotEqual($2, $1)`,
 			`c\.Assert\((.+), DeepEquals, (.+)\)`:        `s.Equal($2, $1)`,
