@@ -3,56 +3,64 @@ package packfile_test
 import (
 	"io"
 	"math"
+	"testing"
 
 	fixtures "github.com/go-git/go-git-fixtures/v4"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/format/idxfile"
 	"github.com/go-git/go-git/v5/plumbing/format/packfile"
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/suite"
 )
 
-type PackfileSuite struct {
+type PackfileFixtureSuite struct {
 	fixtures.Suite
+}
+
+type PackfileSuite struct {
+	suite.Suite
+	PackfileFixtureSuite
 	p   *packfile.Packfile
 	idx *idxfile.MemoryIndex
 	f   *fixtures.Fixture
 }
 
-var _ = Suite(&PackfileSuite{})
+func TestPackfileSuite(t *testing.T) {
+	suite.Run(t, new(PackfileSuite))
+}
 
-func (s *PackfileSuite) TestGet(c *C) {
+func (s *PackfileSuite) TestGet() {
 	for h := range expectedEntries {
 		obj, err := s.p.Get(h)
-		c.Assert(err, IsNil)
-		c.Assert(obj, Not(IsNil))
-		c.Assert(obj.Hash(), Equals, h)
+		s.NoError(err)
+		s.NotNil(obj)
+		s.Equal(h, obj.Hash())
 	}
 
 	_, err := s.p.Get(plumbing.ZeroHash)
-	c.Assert(err, Equals, plumbing.ErrObjectNotFound)
+	s.Equal(err, plumbing.ErrObjectNotFound)
 }
 
-func (s *PackfileSuite) TestGetByOffset(c *C) {
+func (s *PackfileSuite) TestGetByOffset() {
 	for h, o := range expectedEntries {
 		obj, err := s.p.GetByOffset(o)
-		c.Assert(err, IsNil)
-		c.Assert(obj, Not(IsNil))
-		c.Assert(obj.Hash(), Equals, h)
+		s.NoError(err)
+		s.NotNil(obj)
+		s.Equal(h, obj.Hash())
 	}
 
 	_, err := s.p.GetByOffset(math.MaxInt64)
-	c.Assert(err, Equals, plumbing.ErrObjectNotFound)
+	s.Equal(err, plumbing.ErrObjectNotFound)
 }
 
-func (s *PackfileSuite) TestID(c *C) {
+func (s *PackfileSuite) TestID() {
 	id, err := s.p.ID()
-	c.Assert(err, IsNil)
-	c.Assert(id.String(), Equals, s.f.PackfileHash)
+	s.NoError(err)
+	s.Equal(s.f.PackfileHash, id.String())
 }
 
-func (s *PackfileSuite) TestGetAll(c *C) {
+func (s *PackfileSuite) TestGetAll() {
 	iter, err := s.p.GetAll()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	var objects int
 	for {
@@ -60,14 +68,14 @@ func (s *PackfileSuite) TestGetAll(c *C) {
 		if err == io.EOF {
 			break
 		}
-		c.Assert(err, IsNil)
+		s.NoError(err)
 
 		objects++
 		_, ok := expectedEntries[o.Hash()]
-		c.Assert(ok, Equals, true)
+		s.True(ok)
 	}
 
-	c.Assert(objects, Equals, len(expectedEntries))
+	s.Equal(len(expectedEntries), objects)
 }
 
 var expectedEntries = map[plumbing.Hash]int64{
@@ -104,21 +112,22 @@ var expectedEntries = map[plumbing.Hash]int64{
 	plumbing.NewHash("fb72698cab7617ac416264415f13224dfd7a165e"): 84671,
 }
 
-func (s *PackfileSuite) SetUpTest(c *C) {
+func (s *PackfileSuite) SetupTest() {
 	s.f = fixtures.Basic().One()
 
 	s.idx = idxfile.NewMemoryIndex()
-	c.Assert(idxfile.NewDecoder(s.f.Idx()).Decode(s.idx), IsNil)
+	s.Nil(idxfile.NewDecoder(s.f.Idx()).Decode(s.idx))
 
 	s.p = packfile.NewPackfile(s.idx, fixtures.Filesystem, s.f.Packfile(), 0)
 }
 
-func (s *PackfileSuite) TearDownTest(c *C) {
-	c.Assert(s.p.Close(), IsNil)
+func (s *PackfileSuite) TearDownTest() {
+	s.Nil(s.p.Close())
 }
 
-func (s *PackfileSuite) TestDecode(c *C) {
-	fixtures.Basic().ByTag("packfile").Test(c, func(f *fixtures.Fixture) {
+func (s *PackfileSuite) TestDecode() {
+
+	for _, f := range fixtures.Basic().ByTag("packfile") {
 		index := getIndexFromIdxFile(f.Idx())
 
 		p := packfile.NewPackfile(index, fixtures.Filesystem, f.Packfile(), 0)
@@ -126,13 +135,13 @@ func (s *PackfileSuite) TestDecode(c *C) {
 
 		for _, h := range expectedHashes {
 			obj, err := p.Get(plumbing.NewHash(h))
-			c.Assert(err, IsNil)
-			c.Assert(obj.Hash().String(), Equals, h)
+			s.NoError(err)
+			s.Equal(h, obj.Hash().String())
 		}
-	})
+	}
 }
 
-func (s *PackfileSuite) TestDecodeByTypeRefDelta(c *C) {
+func (s *PackfileSuite) TestDecodeByTypeRefDelta() {
 	f := fixtures.Basic().ByTag("ref-delta").One()
 
 	index := getIndexFromIdxFile(f.Idx())
@@ -141,7 +150,7 @@ func (s *PackfileSuite) TestDecodeByTypeRefDelta(c *C) {
 	defer packfile.Close()
 
 	iter, err := packfile.GetByType(plumbing.CommitObject)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	var count int
 	for {
@@ -151,14 +160,14 @@ func (s *PackfileSuite) TestDecodeByTypeRefDelta(c *C) {
 		}
 
 		count++
-		c.Assert(err, IsNil)
-		c.Assert(obj.Type(), Equals, plumbing.CommitObject)
+		s.NoError(err)
+		s.Equal(plumbing.CommitObject, obj.Type())
 	}
 
-	c.Assert(count > 0, Equals, true)
+	s.True(count > 0)
 }
 
-func (s *PackfileSuite) TestDecodeByType(c *C) {
+func (s *PackfileSuite) TestDecodeByType() {
 	ts := []plumbing.ObjectType{
 		plumbing.CommitObject,
 		plumbing.TagObject,
@@ -166,7 +175,7 @@ func (s *PackfileSuite) TestDecodeByType(c *C) {
 		plumbing.BlobObject,
 	}
 
-	fixtures.Basic().ByTag("packfile").Test(c, func(f *fixtures.Fixture) {
+	for _, f := range fixtures.Basic().ByTag("packfile") {
 		for _, t := range ts {
 			index := getIndexFromIdxFile(f.Idx())
 
@@ -174,17 +183,17 @@ func (s *PackfileSuite) TestDecodeByType(c *C) {
 			defer packfile.Close()
 
 			iter, err := packfile.GetByType(t)
-			c.Assert(err, IsNil)
+			s.NoError(err)
 
-			c.Assert(iter.ForEach(func(obj plumbing.EncodedObject) error {
-				c.Assert(obj.Type(), Equals, t)
+			s.NoError(iter.ForEach(func(obj plumbing.EncodedObject) error {
+				s.Equal(t, obj.Type())
 				return nil
-			}), IsNil)
+			}))
 		}
-	})
+	}
 }
 
-func (s *PackfileSuite) TestDecodeByTypeConstructor(c *C) {
+func (s *PackfileSuite) TestDecodeByTypeConstructor() {
 	f := fixtures.Basic().ByTag("packfile").One()
 	index := getIndexFromIdxFile(f.Idx())
 
@@ -192,13 +201,13 @@ func (s *PackfileSuite) TestDecodeByTypeConstructor(c *C) {
 	defer packfile.Close()
 
 	_, err := packfile.GetByType(plumbing.OFSDeltaObject)
-	c.Assert(err, Equals, plumbing.ErrInvalidType)
+	s.Equal(err, plumbing.ErrInvalidType)
 
 	_, err = packfile.GetByType(plumbing.REFDeltaObject)
-	c.Assert(err, Equals, plumbing.ErrInvalidType)
+	s.Equal(err, plumbing.ErrInvalidType)
 
 	_, err = packfile.GetByType(plumbing.InvalidObject)
-	c.Assert(err, Equals, plumbing.ErrInvalidType)
+	s.Equal(err, plumbing.ErrInvalidType)
 }
 
 var expectedHashes = []string{
@@ -244,7 +253,7 @@ func getIndexFromIdxFile(r io.Reader) idxfile.Index {
 	return idx
 }
 
-func (s *PackfileSuite) TestSize(c *C) {
+func (s *PackfileSuite) TestSize() {
 	f := fixtures.Basic().ByTag("ref-delta").One()
 
 	index := getIndexFromIdxFile(f.Idx())
@@ -254,15 +263,15 @@ func (s *PackfileSuite) TestSize(c *C) {
 
 	// Get the size of binary.jpg, which is not delta-encoded.
 	offset, err := packfile.FindOffset(plumbing.NewHash("d5c0f4ab811897cadf03aec358ae60d21f91c50d"))
-	c.Assert(err, IsNil)
+	s.NoError(err)
 	size, err := packfile.GetSizeByOffset(offset)
-	c.Assert(err, IsNil)
-	c.Assert(size, Equals, int64(76110))
+	s.NoError(err)
+	s.Equal(int64(76110), size)
 
 	// Get the size of the root commit, which is delta-encoded.
 	offset, err = packfile.FindOffset(plumbing.NewHash(f.Head))
-	c.Assert(err, IsNil)
+	s.NoError(err)
 	size, err = packfile.GetSizeByOffset(offset)
-	c.Assert(err, IsNil)
-	c.Assert(size, Equals, int64(245))
+	s.NoError(err)
+	s.Equal(int64(245), size)
 }

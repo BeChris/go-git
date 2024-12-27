@@ -3,187 +3,194 @@ package packfile
 import (
 	"bytes"
 	"io"
+	"testing"
 
 	fixtures "github.com/go-git/go-git-fixtures/v4"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/hash"
-
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/suite"
 )
 
-type ScannerSuite struct {
+type ScannerFixtureSuite struct {
 	fixtures.Suite
 }
 
-var _ = Suite(&ScannerSuite{})
+type ScannerSuite struct {
+	suite.Suite
+	ScannerFixtureSuite
+}
 
-func (s *ScannerSuite) TestHeader(c *C) {
+func TestScannerSuite(t *testing.T) {
+	suite.Run(t, new(ScannerSuite))
+}
+
+func (s *ScannerSuite) TestHeader() {
 	r := fixtures.Basic().One().Packfile()
 	p := NewScanner(r)
 
 	version, objects, err := p.Header()
-	c.Assert(err, IsNil)
-	c.Assert(version, Equals, VersionSupported)
-	c.Assert(objects, Equals, uint32(31))
+	s.NoError(err)
+	s.Equal(VersionSupported, version)
+	s.Equal(uint32(31), objects)
 }
 
-func (s *ScannerSuite) TestNextObjectHeaderWithoutHeader(c *C) {
+func (s *ScannerSuite) TestNextObjectHeaderWithoutHeader() {
 	r := fixtures.Basic().One().Packfile()
 	p := NewScanner(r)
 
 	h, err := p.NextObjectHeader()
-	c.Assert(err, IsNil)
-	c.Assert(h, DeepEquals, &expectedHeadersOFS[0])
+	s.NoError(err)
+	s.Equal(&expectedHeadersOFS[0], h)
 
 	version, objects, err := p.Header()
-	c.Assert(err, IsNil)
-	c.Assert(version, Equals, VersionSupported)
-	c.Assert(objects, Equals, uint32(31))
+	s.NoError(err)
+	s.Equal(VersionSupported, version)
+	s.Equal(uint32(31), objects)
 }
 
-func (s *ScannerSuite) TestNextObjectHeaderREFDelta(c *C) {
-	s.testNextObjectHeader(c, "ref-delta", expectedHeadersREF, expectedCRCREF)
+func (s *ScannerSuite) TestNextObjectHeaderREFDelta() {
+	s.testNextObjectHeader("ref-delta", expectedHeadersREF, expectedCRCREF)
 }
 
-func (s *ScannerSuite) TestNextObjectHeaderOFSDelta(c *C) {
-	s.testNextObjectHeader(c, "ofs-delta", expectedHeadersOFS, expectedCRCOFS)
+func (s *ScannerSuite) TestNextObjectHeaderOFSDelta() {
+	s.testNextObjectHeader("ofs-delta", expectedHeadersOFS, expectedCRCOFS)
 }
 
-func (s *ScannerSuite) testNextObjectHeader(c *C, tag string,
+func (s *ScannerSuite) testNextObjectHeader(tag string,
 	expected []ObjectHeader, expectedCRC []uint32) {
 
 	r := fixtures.Basic().ByTag(tag).One().Packfile()
 	p := NewScanner(r)
 
 	_, objects, err := p.Header()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	for i := 0; i < int(objects); i++ {
 		h, err := p.NextObjectHeader()
-		c.Assert(err, IsNil)
-		c.Assert(*h, DeepEquals, expected[i])
+		s.NoError(err)
+		s.Equal(expected[i], *h)
 
 		buf := bytes.NewBuffer(nil)
 		n, crcFromScanner, err := p.NextObject(buf)
-		c.Assert(err, IsNil)
-		c.Assert(n, Equals, h.Length)
-		c.Assert(crcFromScanner, Equals, expectedCRC[i])
+		s.NoError(err)
+		s.Equal(h.Length, n)
+		s.Equal(expectedCRC[i], crcFromScanner)
 	}
 
 	n, err := p.Checksum()
-	c.Assert(err, IsNil)
-	c.Assert(n, HasLen, hash.Size)
+	s.NoError(err)
+	s.Len(n, hash.Size)
 }
 
-func (s *ScannerSuite) TestNextObjectHeaderWithOutReadObject(c *C) {
+func (s *ScannerSuite) TestNextObjectHeaderWithOutReadObject() {
 	f := fixtures.Basic().ByTag("ref-delta").One()
 	r := f.Packfile()
 	p := NewScanner(r)
 
 	_, objects, err := p.Header()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	for i := 0; i < int(objects); i++ {
 		h, _ := p.NextObjectHeader()
-		c.Assert(err, IsNil)
-		c.Assert(*h, DeepEquals, expectedHeadersREF[i])
+		s.NoError(err)
+		s.Equal(expectedHeadersREF[i], *h)
 	}
 
 	err = p.discardObjectIfNeeded()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	n, err := p.Checksum()
-	c.Assert(err, IsNil)
-	c.Assert(n.String(), Equals, f.PackfileHash)
+	s.NoError(err)
+	s.Equal(f.PackfileHash, n.String())
 }
 
-func (s *ScannerSuite) TestNextObjectHeaderWithOutReadObjectNonSeekable(c *C) {
+func (s *ScannerSuite) TestNextObjectHeaderWithOutReadObjectNonSeekable() {
 	f := fixtures.Basic().ByTag("ref-delta").One()
 	r := io.MultiReader(f.Packfile())
 	p := NewScanner(r)
 
 	_, objects, err := p.Header()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	for i := 0; i < int(objects); i++ {
 		h, _ := p.NextObjectHeader()
-		c.Assert(err, IsNil)
-		c.Assert(*h, DeepEquals, expectedHeadersREF[i])
+		s.NoError(err)
+		s.Equal(expectedHeadersREF[i], *h)
 	}
 
 	err = p.discardObjectIfNeeded()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	n, err := p.Checksum()
-	c.Assert(err, IsNil)
-	c.Assert(n.String(), Equals, f.PackfileHash)
+	s.NoError(err)
+	s.Equal(f.PackfileHash, n.String())
 }
 
-func (s *ScannerSuite) TestSeekObjectHeader(c *C) {
+func (s *ScannerSuite) TestSeekObjectHeader() {
 	r := fixtures.Basic().One().Packfile()
 	p := NewScanner(r)
 
 	h, err := p.SeekObjectHeader(expectedHeadersOFS[4].Offset)
-	c.Assert(err, IsNil)
-	c.Assert(h, DeepEquals, &expectedHeadersOFS[4])
+	s.NoError(err)
+	s.Equal(&expectedHeadersOFS[4], h)
 }
 
-func (s *ScannerSuite) TestSeekObjectHeaderNonSeekable(c *C) {
+func (s *ScannerSuite) TestSeekObjectHeaderNonSeekable() {
 	r := io.MultiReader(fixtures.Basic().One().Packfile())
 	p := NewScanner(r)
 
 	_, err := p.SeekObjectHeader(expectedHeadersOFS[4].Offset)
-	c.Assert(err, Equals, ErrSeekNotSupported)
+	s.Equal(err, ErrSeekNotSupported)
 }
 
-func (s *ScannerSuite) TestReaderReset(c *C) {
+func (s *ScannerSuite) TestReaderReset() {
 	r := fixtures.Basic().One().Packfile()
 	p := NewScanner(r)
 
 	version, objects, err := p.Header()
-	c.Assert(err, IsNil)
-	c.Assert(version, Equals, VersionSupported)
-	c.Assert(objects, Equals, uint32(31))
+	s.NoError(err)
+	s.Equal(VersionSupported, version)
+	s.Equal(uint32(31), objects)
 
 	h, err := p.SeekObjectHeader(expectedHeadersOFS[0].Offset)
-	c.Assert(err, IsNil)
-	c.Assert(h, DeepEquals, &expectedHeadersOFS[0])
+	s.NoError(err)
+	s.Equal(&expectedHeadersOFS[0], h)
 
 	p.Reset(r)
-	c.Assert(p.pendingObject, IsNil)
-	c.Assert(p.version, Equals, uint32(0))
-	c.Assert(p.objects, Equals, uint32(0))
-	c.Assert(p.r.reader, Equals, r)
-	c.Assert(p.r.offset > expectedHeadersOFS[0].Offset, Equals, true)
+	s.Nil(p.pendingObject)
+	s.Equal(uint32(0), p.version)
+	s.Equal(uint32(0), p.objects)
+	s.Equal(r, p.r.reader)
+	s.True(p.r.offset > expectedHeadersOFS[0].Offset)
 
 	p.Reset(bytes.NewReader(nil))
-	c.Assert(p.r.offset, Equals, int64(0))
+	s.Equal(int64(0), p.r.offset)
 }
 
-func (s *ScannerSuite) TestReaderResetSeeks(c *C) {
+func (s *ScannerSuite) TestReaderResetSeeks() {
 	r := fixtures.Basic().One().Packfile()
 
 	// seekable
 	p := NewScanner(r)
-	c.Assert(p.IsSeekable, Equals, true)
+	s.True(p.IsSeekable)
 	h, err := p.SeekObjectHeader(expectedHeadersOFS[0].Offset)
-	c.Assert(err, IsNil)
-	c.Assert(h, DeepEquals, &expectedHeadersOFS[0])
+	s.NoError(err)
+	s.Equal(&expectedHeadersOFS[0], h)
 
 	// reset with seekable
 	p.Reset(r)
-	c.Assert(p.IsSeekable, Equals, true)
+	s.True(p.IsSeekable)
 	h, err = p.SeekObjectHeader(expectedHeadersOFS[1].Offset)
-	c.Assert(err, IsNil)
-	c.Assert(h, DeepEquals, &expectedHeadersOFS[1])
+	s.NoError(err)
+	s.Equal(&expectedHeadersOFS[1], h)
 
 	// reset with non-seekable
 	f := fixtures.Basic().ByTag("ref-delta").One()
 	p.Reset(io.MultiReader(f.Packfile()))
-	c.Assert(p.IsSeekable, Equals, false)
+	s.False(p.IsSeekable)
 
 	_, err = p.SeekObjectHeader(expectedHeadersOFS[4].Offset)
-	c.Assert(err, Equals, ErrSeekNotSupported)
+	s.Equal(err, ErrSeekNotSupported)
 }
 
 var expectedHeadersOFS = []ObjectHeader{

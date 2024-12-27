@@ -14,31 +14,38 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/format/packfile"
 	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/storage/filesystem"
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/suite"
 )
 
-type ParserSuite struct {
+type ParserFixtureSuite struct {
 	fixtures.Suite
 }
 
-var _ = Suite(&ParserSuite{})
+type ParserSuite struct {
+	suite.Suite
+	ParserFixtureSuite
+}
 
-func (s *ParserSuite) TestParserHashes(c *C) {
+func TestParserSuite(t *testing.T) {
+	suite.Run(t, new(ParserSuite))
+}
+
+func (s *ParserSuite) TestParserHashes() {
 	f := fixtures.Basic().One()
 	scanner := packfile.NewScanner(f.Packfile())
 
 	obs := new(testObserver)
 	parser, err := packfile.NewParser(scanner, obs)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	ch, err := parser.Parse()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	checksum := "a3fed42da1e8189a077c0e6846c040dcf73fc9dd"
-	c.Assert(ch.String(), Equals, checksum)
+	s.Equal(checksum, ch.String())
 
-	c.Assert(obs.checksum, Equals, checksum)
-	c.Assert(int(obs.count), Equals, int(31))
+	s.Equal(checksum, obs.checksum)
+	s.Equal(int(31), int(obs.count))
 
 	commit := plumbing.CommitObject
 	blob := plumbing.BlobObject
@@ -78,86 +85,86 @@ func (s *ParserSuite) TestParserHashes(c *C) {
 		{"aa9b383c260e1d05fbbf6b30a02914555e20c725", tree, 73, 84760, 0x1d75d6be},
 	}
 
-	c.Assert(obs.objects, DeepEquals, objs)
+	s.Equal(objs, obs.objects)
 }
 
-func (s *ParserSuite) TestThinPack(c *C) {
-	fs := osfs.New(c.MkDir())
+func (s *ParserSuite) TestThinPack() {
+	fs := osfs.New(os.TempDir())
 	path, err := util.TempDir(fs, "", "")
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	// Initialize an empty repository
 	r, err := git.PlainInit(path, true)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	// Try to parse a thin pack without having the required objects in the repo to
 	// see if the correct errors are returned
 	thinpack := fixtures.ByTag("thinpack").One()
 	scanner := packfile.NewScanner(thinpack.Packfile())
 	parser, err := packfile.NewParserWithStorage(scanner, r.Storer) // ParserWithStorage writes to the storer all parsed objects!
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	_, err = parser.Parse()
-	c.Assert(err, Equals, plumbing.ErrObjectNotFound)
+	s.Equal(err, plumbing.ErrObjectNotFound)
 
 	path, err = util.TempDir(fs, "", "")
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	// start over with a clean repo
 	r, err = git.PlainInit(path, true)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	// Now unpack a base packfile into our empty repo:
 	f := fixtures.ByURL("https://github.com/spinnaker/spinnaker.git").One()
 	w, err := r.Storer.(storer.PackfileWriter).PackfileWriter()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 	_, err = io.Copy(w, f.Packfile())
-	c.Assert(err, IsNil)
+	s.NoError(err)
 	w.Close()
 
 	// Check that the test object that will come with our thin pack is *not* in the repo
 	_, err = r.Storer.EncodedObject(plumbing.CommitObject, plumbing.NewHash(thinpack.Head))
-	c.Assert(err, Equals, plumbing.ErrObjectNotFound)
+	s.Equal(err, plumbing.ErrObjectNotFound)
 
 	// Now unpack the thin pack:
 	scanner = packfile.NewScanner(thinpack.Packfile())
 	parser, err = packfile.NewParserWithStorage(scanner, r.Storer) // ParserWithStorage writes to the storer all parsed objects!
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	h, err := parser.Parse()
-	c.Assert(err, IsNil)
-	c.Assert(h, Equals, plumbing.NewHash("1288734cbe0b95892e663221d94b95de1f5d7be8"))
+	s.NoError(err)
+	s.Equal(plumbing.NewHash("1288734cbe0b95892e663221d94b95de1f5d7be8"), h)
 
 	// Check that our test object is now accessible
 	_, err = r.Storer.EncodedObject(plumbing.CommitObject, plumbing.NewHash(thinpack.Head))
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 }
 
-func (s *ParserSuite) TestResolveExternalRefsInThinPack(c *C) {
+func (s *ParserSuite) TestResolveExternalRefsInThinPack() {
 	extRefsThinPack := fixtures.ByTag("codecommit").One()
 
 	scanner := packfile.NewScanner(extRefsThinPack.Packfile())
 
 	obs := new(testObserver)
 	parser, err := packfile.NewParser(scanner, obs)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	_, err = parser.Parse()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 }
 
-func (s *ParserSuite) TestResolveExternalRefs(c *C) {
+func (s *ParserSuite) TestResolveExternalRefs() {
 	extRefsThinPack := fixtures.ByTag("delta-before-base").One()
 
 	scanner := packfile.NewScanner(extRefsThinPack.Packfile())
 
 	obs := new(testObserver)
 	parser, err := packfile.NewParser(scanner, obs)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	_, err = parser.Parse()
-	c.Assert(err, IsNil)
+	s.NoError(err)
 }
 
 type observerObject struct {
