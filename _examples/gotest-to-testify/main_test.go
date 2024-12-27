@@ -34,7 +34,7 @@ func Test(t *testing.T) {
 		},
 		{
 			[]string{"c.Assert(err, Equals, ErrGitModulesSymlink)"},
-			[]string{"s.ErrorIs(err, ErrGitModulesSymlink)"},
+			[]string{"s.Equal(err, ErrGitModulesSymlink)"},
 		},
 		{
 			[]string{"c.Assert(str, Equals, expected[i].s)"},
@@ -70,7 +70,7 @@ func Test(t *testing.T) {
 		},
 		{
 			[]string{"c.Assert(err, DeepEquals, e)"},
-			[]string{"s.ErrorIs(err, e)"},
+			[]string{"s.Equal(err, e)"},
 		},
 		{
 			[]string{"c.Assert(ok, Equals, true)"},
@@ -115,12 +115,33 @@ func Test(t *testing.T) {
 			[]string{`c.Assert(fmt.Sprintf("%x", idx.PackfileChecksum), Equals, f.PackfileHash)`},
 			[]string{`s.Equal(f.PackfileHash, fmt.Sprintf("%x", idx.PackfileChecksum))`},
 		},
+		{
+			[]string{"c.Assert(p, FitsTypeOf, &Parser{})"},
+			[]string{"s.IsType(&Parser{}, p)"},
+		},
+		{
+			[]string{"type ParserSuite struct{}"},
+			[]string{
+				"type ParserSuite struct {",
+				"\tsuite.Suite",
+				"}",
+			},
+		},
+		{
+			[]string{"var _ = Suite(&ParserSuite{})"},
+			[]string{
+				"func TestParserSuite(t *testing.T) {",
+				"\tsuite.Run(t, new(ParserSuite))",
+				"}",
+			},
+		},
+		// func TestModulesSuite(t *testing.T) {
 
 		// c.Assert(ru.Entries[1].Stages[OurMode], Not(Equals), plumbing.ZeroHash)
 
 		// c.Assert(err, IsNil, comment)
 
-		//
+		// c.Assert(p, FitsTypeOf, &Parser{})
 	} {
 		modifiedContent := modifyFile(testData.lines)
 

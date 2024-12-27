@@ -10,6 +10,10 @@ import (
 
 // Basic example of how to clone a repository using clone options.
 func main() {
+	if len(os.Args) < 2 {
+		fmt.Printf("Usage : %s <filePath>\n", os.Args[0])
+		os.Exit(1)
+	}
 	filePath := os.Args[1]
 
 	fmt.Println("Read", filePath)
@@ -43,8 +47,8 @@ func modifyFile(content []string) []string {
 			`c\.Assert\(len\(([^)]+)\), Equals, (.+)\)`: `s.Len($1, $2)`,
 		},
 		map[string]string{
-			`c\.Assert\(err, Equals, (.+)\)`:        `s.ErrorIs(err, $1)`,
-			`c\.Assert\(err, DeepEquals, (.+)\)`:    `s.ErrorIs(err, $1)`,
+			`c\.Assert\(err, Equals, (.+)\)`:        `s.Equal(err, $1)`,
+			`c\.Assert\(err, DeepEquals, (.+)\)`:    `s.Equal(err, $1)`,
 			`c\.Assert\((.+), Equals, true\)`:       `s.True($1)`,
 			`c\.Assert\((.+), Equals, false\)`:      `s.False($1)`,
 			`c\.Assert\((.+), IsNil\)`:              `s.Nil($1)`,
@@ -59,6 +63,7 @@ func modifyFile(content []string) []string {
 			`c\.Assert\((.+), DeepEquals, (.+)\)`:        `s.Equal($2, $1)`,
 			`c\.Assert\((.+), Not\(DeepEquals\), (.+)\)`: `s.NotEqual($2, $1)`,
 			`c\.Assert\((.+), HasLen, (.+)\)`:            `s.Len($1, $2)`,
+			`c\.Assert\((.+), FitsTypeOf, (.+)\)`:        `s.IsType($2, $1)`,
 		},
 	}
 
@@ -77,7 +82,24 @@ func modifyFile(content []string) []string {
 			}
 		}
 
-		result = append(result, line)
+		suiteTypeRe := regexp.MustCompile(`type (.+Suite) struct\{\}`)
+		suiteTypeReplacedLine := suiteTypeRe.ReplaceAllString(line, "type $1 struct {")
+
+		suiteVarRe := regexp.MustCompile(`var _ = Suite\(&(.+Suite)\{\}\)`)
+		suiteVarReplacedLine := suiteVarRe.ReplaceAllString(line, "func Test$1(t *testing.T) {")
+		suiteRunReplacedLine := suiteVarRe.ReplaceAllString(line, "\tsuite.Run(t, new($1))")
+
+		if suiteTypeReplacedLine != line {
+			result = append(result, suiteTypeReplacedLine)
+			result = append(result, "\tsuite.Suite")
+			result = append(result, "}")
+		} else if suiteVarReplacedLine != line {
+			result = append(result, suiteVarReplacedLine)
+			result = append(result, suiteRunReplacedLine)
+			result = append(result, "}")
+		} else {
+			result = append(result, line)
+		}
 	}
 
 	return result
