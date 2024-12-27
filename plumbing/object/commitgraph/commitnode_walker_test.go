@@ -7,28 +7,27 @@ import (
 	commitgraph "github.com/go-git/go-git/v5/plumbing/format/commitgraph/v2"
 
 	fixtures "github.com/go-git/go-git-fixtures/v4"
-	. "gopkg.in/check.v1"
 )
 
-func (s *CommitNodeSuite) TestCommitNodeIter(c *C) {
+func (s *CommitNodeSuite) TestCommitNodeIter() {
 	f := fixtures.ByTag("commit-graph-chain-2").One()
 
 	storer := unpackRepository(f)
 
 	index, err := commitgraph.OpenChainOrFileIndex(storer.Filesystem())
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	nodeIndex := NewGraphCommitNodeIndex(index, storer)
 
 	head, err := nodeIndex.Get(plumbing.NewHash("ec6f456c0e8c7058a29611429965aa05c190b54b"))
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	testTopoOrder(c, head)
-	testDateOrder(c, head)
-	testAuthorDateOrder(c, head)
+	testTopoOrder(s, head)
+	testDateOrder(s, head)
+	testAuthorDateOrder(s, head)
 }
 
-func testTopoOrder(c *C, head CommitNode) {
+func testTopoOrder(s *CommitNodeSuite, head CommitNode) {
 	iter := NewCommitNodeIterTopoOrder(
 		head,
 		nil,
@@ -40,7 +39,7 @@ func testTopoOrder(c *C, head CommitNode) {
 		commits = append(commits, c.ID().String())
 		return nil
 	})
-	c.Assert(commits, DeepEquals, strings.Split(`ec6f456c0e8c7058a29611429965aa05c190b54b
+	s.Equal(strings.Split(`ec6f456c0e8c7058a29611429965aa05c190b54b
 d82f291cde9987322c8a0c81a325e1ba6159684c
 3048d280d2d5b258d9e582a226ff4bbed34fd5c9
 27aa8cdd2431068606741a589383c02c149ea625
@@ -77,10 +76,10 @@ c2bbf9fe8009b22d0f390f3c8c3f13937067590f
 fc9f0643b21cfe571046e27e0c4565f3a1ee96c8
 c088fd6a7e1a38e9d5a9815265cb575bb08d08ff
 5fddbeb678bd2c36c5e5c891ab8f2b143ced5baf
-5d7303c49ac984a9fec60523f2d5297682e16646`, "\n"))
+5d7303c49ac984a9fec60523f2d5297682e16646`, "\n"), commits)
 }
 
-func testDateOrder(c *C, head CommitNode) {
+func testDateOrder(s *CommitNodeSuite, head CommitNode) {
 	iter := NewCommitNodeIterDateOrder(
 		head,
 		nil,
@@ -93,7 +92,7 @@ func testDateOrder(c *C, head CommitNode) {
 		return nil
 	})
 
-	c.Assert(commits, DeepEquals, strings.Split(`ec6f456c0e8c7058a29611429965aa05c190b54b
+	s.Equal(strings.Split(`ec6f456c0e8c7058a29611429965aa05c190b54b
 3048d280d2d5b258d9e582a226ff4bbed34fd5c9
 d82f291cde9987322c8a0c81a325e1ba6159684c
 27aa8cdd2431068606741a589383c02c149ea625
@@ -130,10 +129,10 @@ c2bbf9fe8009b22d0f390f3c8c3f13937067590f
 fc9f0643b21cfe571046e27e0c4565f3a1ee96c8
 c088fd6a7e1a38e9d5a9815265cb575bb08d08ff
 5fddbeb678bd2c36c5e5c891ab8f2b143ced5baf
-5d7303c49ac984a9fec60523f2d5297682e16646`, "\n"))
+5d7303c49ac984a9fec60523f2d5297682e16646`, "\n"), commits)
 }
 
-func testAuthorDateOrder(c *C, head CommitNode) {
+func testAuthorDateOrder(s *CommitNodeSuite, head CommitNode) {
 	iter := NewCommitNodeIterAuthorDateOrder(
 		head,
 		nil,
@@ -146,7 +145,7 @@ func testAuthorDateOrder(c *C, head CommitNode) {
 		return nil
 	})
 
-	c.Assert(commits, DeepEquals, strings.Split(`ec6f456c0e8c7058a29611429965aa05c190b54b
+	s.Equal(strings.Split(`ec6f456c0e8c7058a29611429965aa05c190b54b
 3048d280d2d5b258d9e582a226ff4bbed34fd5c9
 d82f291cde9987322c8a0c81a325e1ba6159684c
 27aa8cdd2431068606741a589383c02c149ea625
@@ -183,5 +182,5 @@ c2bbf9fe8009b22d0f390f3c8c3f13937067590f
 fc9f0643b21cfe571046e27e0c4565f3a1ee96c8
 c088fd6a7e1a38e9d5a9815265cb575bb08d08ff
 5fddbeb678bd2c36c5e5c891ab8f2b143ced5baf
-5d7303c49ac984a9fec60523f2d5297682e16646`, "\n"))
+5d7303c49ac984a9fec60523f2d5297682e16646`, "\n"), commits)
 }
