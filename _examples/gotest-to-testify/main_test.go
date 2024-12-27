@@ -128,6 +128,13 @@ func Test(t *testing.T) {
 			},
 		},
 		{
+			[]string{"type ObjectSuite struct {"},
+			[]string{
+				"type ObjectSuite struct {",
+				"\tsuite.Suite",
+			},
+		},
+		{
 			[]string{"var _ = Suite(&ParserSuite{})"},
 			[]string{
 				"func TestParserSuite(t *testing.T) {",
@@ -135,6 +142,29 @@ func Test(t *testing.T) {
 				"}",
 			},
 		},
+		{
+			[]string{"func Test(t *testing.T) { TestingT(t) }"},
+			[]string{""},
+		},
+		{
+			[]string{
+				"SetUpSuite()",
+				"SetUpTest()",
+			},
+			[]string{
+				"SetupSuite()",
+				"SetupTest()",
+			},
+		},
+
+		// SetUpSuite(c *C)
+
+		// SetUpTest()
+		// SetupTest()
+
+		//	type ObjectSuite struct {
+
+		// func Test(t *testing.T) { TestingT(t) }
 		// func TestModulesSuite(t *testing.T) {
 
 		// c.Assert(ru.Entries[1].Stages[OurMode], Not(Equals), plumbing.ZeroHash)

@@ -35,10 +35,13 @@ func main() {
 
 func modifyFile(content []string) []string {
 	simpleReplacements := map[string]string{
-		"(c *C)":                     "()",
-		"c.Assert(err, IsNil)":       "s.NoError(err)",
-		"c.Assert(err, Not(IsNil))":  "s.Error(err)",
-		"c.Assert(err, Equals, nil)": "s.NoError(err)",
+		"(c *C)":                                  "()",
+		"c.Assert(err, IsNil)":                    "s.NoError(err)",
+		"c.Assert(err, Not(IsNil))":               "s.Error(err)",
+		"c.Assert(err, Equals, nil)":              "s.NoError(err)",
+		"func Test(t *testing.T) { TestingT(t) }": "",
+		"SetUpSuite()":                            "SetupSuite()",
+		"SetUpTest()":                             "SetupTest()",
 	}
 
 	regexpReplacements := []map[string]string{
@@ -82,18 +85,24 @@ func modifyFile(content []string) []string {
 			}
 		}
 
-		suiteTypeRe := regexp.MustCompile(`type (.+Suite) struct\{\}`)
+		emptySuiteTypeRe := regexp.MustCompile(`type (.+Suite) struct\{\}`)
+		emptySuiteTypeReplacedLine := emptySuiteTypeRe.ReplaceAllString(line, "type $1 struct {")
+
+		suiteTypeRe := regexp.MustCompile(`type (.+Suite) struct \{`)
 		suiteTypeReplacedLine := suiteTypeRe.ReplaceAllString(line, "type $1 struct {")
 
 		suiteVarRe := regexp.MustCompile(`var _ = Suite\(&(.+Suite)\{\}\)`)
 		suiteVarReplacedLine := suiteVarRe.ReplaceAllString(line, "func Test$1(t *testing.T) {")
 		suiteRunReplacedLine := suiteVarRe.ReplaceAllString(line, "\tsuite.Run(t, new($1))")
 
-		if suiteTypeReplacedLine != line {
-			result = append(result, suiteTypeReplacedLine)
+		if emptySuiteTypeRe.FindStringSubmatch(line) != nil {
+			result = append(result, emptySuiteTypeReplacedLine)
 			result = append(result, "\tsuite.Suite")
 			result = append(result, "}")
-		} else if suiteVarReplacedLine != line {
+		} else if suiteTypeRe.FindStringSubmatch(line) != nil {
+			result = append(result, suiteTypeReplacedLine)
+			result = append(result, "\tsuite.Suite")
+		} else if suiteVarRe.FindStringSubmatch(line) != nil {
 			result = append(result, suiteVarReplacedLine)
 			result = append(result, suiteRunReplacedLine)
 			result = append(result, "}")
