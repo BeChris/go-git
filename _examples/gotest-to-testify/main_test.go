@@ -148,12 +148,12 @@ func Test(t *testing.T) {
 		},
 		{
 			[]string{
-				"SetUpSuite()",
-				"SetUpTest()",
+				"SetUpSuite(",
+				"SetUpTest(",
 			},
 			[]string{
-				"SetupSuite()",
-				"SetupTest()",
+				"SetupSuite(",
+				"SetupTest(",
 			},
 		},
 		{

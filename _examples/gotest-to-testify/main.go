@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -11,25 +12,37 @@ import (
 // Basic example of how to clone a repository using clone options.
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Printf("Usage : %s <filePath>\n", os.Args[0])
+		fmt.Printf("Usage : %s <dir>\n", os.Args[0])
 		os.Exit(1)
 	}
-	filePath := os.Args[1]
 
-	fmt.Println("Read", filePath)
-	fileContent, err := os.ReadFile(filePath)
+	entries, err := os.ReadDir(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	lines := strings.Split(string(fileContent), "\n")
+	for _, entry := range entries {
+		fullPath := filepath.Join(os.Args[1], entry.Name())
 
-	newFileContent := modifyFile(lines)
+		if !strings.HasSuffix(fullPath, "_test.go") {
+			continue
+		}
 
-	fmt.Println("Write", filePath)
-	err = os.WriteFile(filePath, []byte(strings.Join(newFileContent, "\n")), 0644)
-	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Read", fullPath)
+		fileContent, err := os.ReadFile(fullPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		lines := strings.Split(string(fileContent), "\n")
+
+		newFileContent := modifyFile(lines)
+
+		fmt.Println("Write", fullPath)
+		err = os.WriteFile(fullPath, []byte(strings.Join(newFileContent, "\n")), 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -40,15 +53,17 @@ func modifyFile(content []string) []string {
 		"c.Assert(err, Not(IsNil))":               "s.Error(err)",
 		"c.Assert(err, Equals, nil)":              "s.NoError(err)",
 		"func Test(t *testing.T) { TestingT(t) }": "",
-		"SetUpSuite()":                            "SetupSuite()",
-		"SetUpTest()":                             "SetupTest()",
+		"SetUpSuite(":                             "SetupSuite(",
+		"SetUpTest(":                              "SetupTest(",
 	}
 
 	regexpReplacements := []map[string]string{
 		map[string]string{
+			`Commentf\(([^)]+)\)`: `fmt.Sprintf($1)`,
+		},
+		map[string]string{
 			`c\.Assert\(err, IsNil, (.+)\)`:             `s.NoError(err, $1)`,
 			`c\.Assert\(len\(([^)]+)\), Equals, (.+)\)`: `s.Len($1, $2)`,
-			`Commentf\(([^)]+)\)`:                       `fmt.Sprintf($1)`,
 			`c\.Assert\((.+), Equals, (.+), (.+)\)`:     `s.Equal($2, $1, $3)`,
 		},
 		map[string]string{
