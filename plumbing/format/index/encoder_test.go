@@ -8,10 +8,9 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 
 	"github.com/google/go-cmp/cmp"
-	. "gopkg.in/check.v1"
 )
 
-func (s *IndexSuite) TestEncode(c *C) {
+func (s *IndexSuite) TestEncode() {
 	idx := &Index{
 		Version: 2,
 		Entries: []*Entry{{
@@ -41,22 +40,22 @@ func (s *IndexSuite) TestEncode(c *C) {
 	buf := bytes.NewBuffer(nil)
 	e := NewEncoder(buf)
 	err := e.Encode(idx)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	output := &Index{}
 	d := NewDecoder(buf)
 	err = d.Decode(output)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	c.Assert(cmp.Equal(idx, output), Equals, true)
+	s.True(cmp.Equal(idx, output))
 
-	c.Assert(output.Entries[0].Name, Equals, strings.Repeat(" ", 20))
-	c.Assert(output.Entries[1].Name, Equals, "bar")
-	c.Assert(output.Entries[2].Name, Equals, "foo")
+	s.Equal(strings.Repeat(" ", 20), output.Entries[0].Name)
+	s.Equal("bar", output.Entries[1].Name)
+	s.Equal("foo", output.Entries[2].Name)
 
 }
 
-func (s *IndexSuite) TestEncodeV4(c *C) {
+func (s *IndexSuite) TestEncodeV4() {
 	idx := &Index{
 		Version: 4,
 		Entries: []*Entry{{
@@ -96,32 +95,32 @@ func (s *IndexSuite) TestEncodeV4(c *C) {
 	buf := bytes.NewBuffer(nil)
 	e := NewEncoder(buf)
 	err := e.Encode(idx)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	output := &Index{}
 	d := NewDecoder(buf)
 	err = d.Decode(output)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	c.Assert(cmp.Equal(idx, output), Equals, true)
+	s.True(cmp.Equal(idx, output))
 
-	c.Assert(output.Entries[0].Name, Equals, strings.Repeat(" ", 20))
-	c.Assert(output.Entries[1].Name, Equals, "bar")
-	c.Assert(output.Entries[2].Name, Equals, "baz/bar")
-	c.Assert(output.Entries[3].Name, Equals, "baz/bar/bar")
-	c.Assert(output.Entries[4].Name, Equals, "foo")
+	s.Equal(strings.Repeat(" ", 20), output.Entries[0].Name)
+	s.Equal("bar", output.Entries[1].Name)
+	s.Equal("baz/bar", output.Entries[2].Name)
+	s.Equal("baz/bar/bar", output.Entries[3].Name)
+	s.Equal("foo", output.Entries[4].Name)
 }
 
-func (s *IndexSuite) TestEncodeUnsupportedVersion(c *C) {
+func (s *IndexSuite) TestEncodeUnsupportedVersion() {
 	idx := &Index{Version: 5}
 
 	buf := bytes.NewBuffer(nil)
 	e := NewEncoder(buf)
 	err := e.Encode(idx)
-	c.Assert(err, Equals, ErrUnsupportedVersion)
+	s.Equal(err, ErrUnsupportedVersion)
 }
 
-func (s *IndexSuite) TestEncodeWithIntentToAddUnsupportedVersion(c *C) {
+func (s *IndexSuite) TestEncodeWithIntentToAddUnsupportedVersion() {
 	idx := &Index{
 		Version: 3,
 		Entries: []*Entry{{IntentToAdd: true}},
@@ -130,18 +129,18 @@ func (s *IndexSuite) TestEncodeWithIntentToAddUnsupportedVersion(c *C) {
 	buf := bytes.NewBuffer(nil)
 	e := NewEncoder(buf)
 	err := e.Encode(idx)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	output := &Index{}
 	d := NewDecoder(buf)
 	err = d.Decode(output)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	c.Assert(cmp.Equal(idx, output), Equals, true)
-	c.Assert(output.Entries[0].IntentToAdd, Equals, true)
+	s.True(cmp.Equal(idx, output))
+	s.True(output.Entries[0].IntentToAdd)
 }
 
-func (s *IndexSuite) TestEncodeWithSkipWorktreeUnsupportedVersion(c *C) {
+func (s *IndexSuite) TestEncodeWithSkipWorktreeUnsupportedVersion() {
 	idx := &Index{
 		Version: 3,
 		Entries: []*Entry{{SkipWorktree: true}},
@@ -150,13 +149,13 @@ func (s *IndexSuite) TestEncodeWithSkipWorktreeUnsupportedVersion(c *C) {
 	buf := bytes.NewBuffer(nil)
 	e := NewEncoder(buf)
 	err := e.Encode(idx)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	output := &Index{}
 	d := NewDecoder(buf)
 	err = d.Decode(output)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	c.Assert(cmp.Equal(idx, output), Equals, true)
-	c.Assert(output.Entries[0].SkipWorktree, Equals, true)
+	s.True(cmp.Equal(idx, output))
+	s.True(output.Entries[0].SkipWorktree)
 }
