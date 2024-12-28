@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// Basic example of how to clone a repository using clone options.
+// A tool to migrate gotest test sourcecode to use testify
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Printf("Usage : %s <dir>\n", os.Args[0])
@@ -59,7 +59,9 @@ func modifyFile(content []string) []string {
 
 	regexpReplacements := []map[string]string{
 		map[string]string{
-			`Commentf\(([^)]+)\)`: `fmt.Sprintf($1)`,
+			`Commentf\((.+)\)`:                     `fmt.Sprintf($1)`,
+			`c\.Assert\(err, ErrorMatches, (.+)\)`: `s.ErrorContains(err, $1)`,
+			`c\.Log\((.+)\)`:                       `s.T().Log($1)`,
 		},
 		map[string]string{
 			`c\.Assert\(err, IsNil, (.+)\)`:             `s.NoError(err, $1)`,

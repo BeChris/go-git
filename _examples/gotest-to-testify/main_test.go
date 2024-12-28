@@ -160,24 +160,14 @@ func Test(t *testing.T) {
 			[]string{`comment := Commentf("input %d = %v\n", i, test.input)`},
 			[]string{`comment := fmt.Sprintf("input %d = %v\n", i, test.input)`},
 		},
-
-		//
-
-		// SetUpSuite(c *C)
-
-		// SetUpTest()
-		// SetupTest()
-
-		//	type ObjectSuite struct {
-
-		// func Test(t *testing.T) { TestingT(t) }
-		// func TestModulesSuite(t *testing.T) {
-
-		// c.Assert(ru.Entries[1].Stages[OurMode], Not(Equals), plumbing.ZeroHash)
-
-		// c.Assert(err, IsNil, comment)
-
-		// c.Assert(p, FitsTypeOf, &Parser{})
+		{
+			[]string{`c.Assert(err, ErrorMatches, "malformed change.*")`},
+			[]string{`s.ErrorContains(err, "malformed change.*")`},
+		},
+		{
+			[]string{`c.Log("Executing test cases:", tc.description)`},
+			[]string{`s.T().Log("Executing test cases:", tc.description)`},
+		},
 	} {
 		modifiedContent := modifyFile(testData.lines)
 
