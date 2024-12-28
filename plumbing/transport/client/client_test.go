@@ -5,53 +5,54 @@ import (
 	"testing"
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
-
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/suite"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+type ClientSuite struct {
+	suite.Suite
+}
 
-type ClientSuite struct{}
+func TestClientSuite(t *testing.T) {
+	suite.Run(t, new(ClientSuite))
+}
 
-var _ = Suite(&ClientSuite{})
-
-func (s *ClientSuite) TestNewClientSSH(c *C) {
+func (s *ClientSuite) TestNewClientSSH() {
 	e, err := transport.NewEndpoint("ssh://github.com/src-d/go-git")
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	output, err := NewClient(e)
-	c.Assert(err, IsNil)
-	c.Assert(output, NotNil)
+	s.NoError(err)
+	s.NotNil(output)
 }
 
-func (s *ClientSuite) TestNewClientUnknown(c *C) {
+func (s *ClientSuite) TestNewClientUnknown() {
 	e, err := transport.NewEndpoint("unknown://github.com/src-d/go-git")
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	_, err = NewClient(e)
-	c.Assert(err, NotNil)
+	s.NotNil(err)
 }
 
-func (s *ClientSuite) TestNewClientNil(c *C) {
+func (s *ClientSuite) TestNewClientNil() {
 	Protocols["newscheme"] = nil
 	e, err := transport.NewEndpoint("newscheme://github.com/src-d/go-git")
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	_, err = NewClient(e)
-	c.Assert(err, NotNil)
+	s.NotNil(err)
 }
 
-func (s *ClientSuite) TestInstallProtocol(c *C) {
+func (s *ClientSuite) TestInstallProtocol() {
 	InstallProtocol("newscheme", &dummyClient{})
-	c.Assert(Protocols["newscheme"], NotNil)
+	s.NotNil(Protocols["newscheme"])
 }
 
-func (s *ClientSuite) TestInstallProtocolNilValue(c *C) {
+func (s *ClientSuite) TestInstallProtocolNilValue() {
 	InstallProtocol("newscheme", &dummyClient{})
 	InstallProtocol("newscheme", nil)
 
 	_, ok := Protocols["newscheme"]
-	c.Assert(ok, Equals, false)
+	s.False(ok)
 }
 
 type dummyClient struct {
