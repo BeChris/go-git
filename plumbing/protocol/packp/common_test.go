@@ -2,32 +2,30 @@ package packp
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"testing"
 
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
-
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/assert"
 )
 
-func Test(t *testing.T) { TestingT(t) }
-
 // returns a byte slice with the pkt-lines for the given payloads.
-func pktlines(c *C, payloads ...string) []byte {
+func pktlines(t *testing.T, payloads ...string) []byte {
 	var buf bytes.Buffer
 	e := pktline.NewEncoder(&buf)
 
 	err := e.EncodeString(payloads...)
-	c.Assert(err, IsNil, Commentf("building pktlines for %v\n", payloads))
+	assert.NoError(t, err, fmt.Sprintf("building pktlines for %v\n", payloads))
 
 	return buf.Bytes()
 }
 
-func toPktLines(c *C, payloads []string) io.Reader {
+func toPktLines(t *testing.T, payloads []string) io.Reader {
 	var buf bytes.Buffer
 	e := pktline.NewEncoder(&buf)
 	err := e.EncodeString(payloads...)
-	c.Assert(err, IsNil)
+	assert.NoError(t, err)
 
 	return &buf
 }

@@ -4,64 +4,68 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"testing"
 
 	"github.com/go-git/go-git/v5/plumbing"
-
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/suite"
 )
 
-type ServerResponseSuite struct{}
+type ServerResponseSuite struct {
+	suite.Suite
+}
 
-var _ = Suite(&ServerResponseSuite{})
+func TestServerResponseSuite(t *testing.T) {
+	suite.Run(t, new(ServerResponseSuite))
+}
 
-func (s *ServerResponseSuite) TestDecodeNAK(c *C) {
+func (s *ServerResponseSuite) TestDecodeNAK() {
 	raw := "0008NAK\n"
 
 	sr := &ServerResponse{}
 	err := sr.Decode(bufio.NewReader(bytes.NewBufferString(raw)), false)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	c.Assert(sr.ACKs, HasLen, 0)
+	s.Len(sr.ACKs, 0)
 }
 
-func (s *ServerResponseSuite) TestDecodeNewLine(c *C) {
+func (s *ServerResponseSuite) TestDecodeNewLine() {
 	raw := "\n"
 
 	sr := &ServerResponse{}
 	err := sr.Decode(bufio.NewReader(bytes.NewBufferString(raw)), false)
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "invalid pkt-len found")
+	s.NotNil(err)
+	s.Equal("invalid pkt-len found", err.Error())
 }
 
-func (s *ServerResponseSuite) TestDecodeEmpty(c *C) {
+func (s *ServerResponseSuite) TestDecodeEmpty() {
 	raw := ""
 
 	sr := &ServerResponse{}
 	err := sr.Decode(bufio.NewReader(bytes.NewBufferString(raw)), false)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 }
 
-func (s *ServerResponseSuite) TestDecodePartial(c *C) {
+func (s *ServerResponseSuite) TestDecodePartial() {
 	raw := "000600\n"
 
 	sr := &ServerResponse{}
 	err := sr.Decode(bufio.NewReader(bytes.NewBufferString(raw)), false)
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, fmt.Sprintf("unexpected content %q", "00"))
+	s.NotNil(err)
+	s.Equal(fmt.Sprintf("unexpected content %q", "00"), err.Error())
 }
 
-func (s *ServerResponseSuite) TestDecodeACK(c *C) {
+func (s *ServerResponseSuite) TestDecodeACK() {
 	raw := "0031ACK 6ecf0ef2c2dffb796033e5a02219af86ec6584e5\n"
 
 	sr := &ServerResponse{}
 	err := sr.Decode(bufio.NewReader(bytes.NewBufferString(raw)), false)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	c.Assert(sr.ACKs, HasLen, 1)
-	c.Assert(sr.ACKs[0], Equals, plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5"))
+	s.Len(sr.ACKs, 1)
+	s.Equal(plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5"), sr.ACKs[0])
 }
 
-func (s *ServerResponseSuite) TestDecodeMultipleACK(c *C) {
+func (s *ServerResponseSuite) TestDecodeMultipleACK() {
 	raw := "" +
 		"0031ACK 1111111111111111111111111111111111111111\n" +
 		"0031ACK 6ecf0ef2c2dffb796033e5a02219af86ec6584e5\n" +
@@ -69,14 +73,14 @@ func (s *ServerResponseSuite) TestDecodeMultipleACK(c *C) {
 
 	sr := &ServerResponse{}
 	err := sr.Decode(bufio.NewReader(bytes.NewBufferString(raw)), false)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	c.Assert(sr.ACKs, HasLen, 2)
-	c.Assert(sr.ACKs[0], Equals, plumbing.NewHash("1111111111111111111111111111111111111111"))
-	c.Assert(sr.ACKs[1], Equals, plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5"))
+	s.Len(sr.ACKs, 2)
+	s.Equal(plumbing.NewHash("1111111111111111111111111111111111111111"), sr.ACKs[0])
+	s.Equal(plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5"), sr.ACKs[1])
 }
 
-func (s *ServerResponseSuite) TestDecodeMultipleACKWithSideband(c *C) {
+func (s *ServerResponseSuite) TestDecodeMultipleACKWithSideband() {
 	raw := "" +
 		"0031ACK 1111111111111111111111111111111111111111\n" +
 		"0031ACK 6ecf0ef2c2dffb796033e5a02219af86ec6584e5\n" +
@@ -84,26 +88,26 @@ func (s *ServerResponseSuite) TestDecodeMultipleACKWithSideband(c *C) {
 
 	sr := &ServerResponse{}
 	err := sr.Decode(bufio.NewReader(bytes.NewBufferString(raw)), false)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	c.Assert(sr.ACKs, HasLen, 2)
-	c.Assert(sr.ACKs[0], Equals, plumbing.NewHash("1111111111111111111111111111111111111111"))
-	c.Assert(sr.ACKs[1], Equals, plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5"))
+	s.Len(sr.ACKs, 2)
+	s.Equal(plumbing.NewHash("1111111111111111111111111111111111111111"), sr.ACKs[0])
+	s.Equal(plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5"), sr.ACKs[1])
 }
 
-func (s *ServerResponseSuite) TestDecodeMalformed(c *C) {
+func (s *ServerResponseSuite) TestDecodeMalformed() {
 	raw := "0029ACK 6ecf0ef2c2dffb796033e5a02219af86ec6584e\n"
 
 	sr := &ServerResponse{}
 	err := sr.Decode(bufio.NewReader(bytes.NewBufferString(raw)), false)
-	c.Assert(err, NotNil)
+	s.NotNil(err)
 }
 
 // multi_ack isn't fully implemented, this ensures that Decode ignores that fact,
 // as in some circumstances that's OK to assume so.
 //
 // TODO: Review as part of multi_ack implementation.
-func (s *ServerResponseSuite) TestDecodeMultiACK(c *C) {
+func (s *ServerResponseSuite) TestDecodeMultiACK() {
 	raw := "" +
 		"0031ACK 1111111111111111111111111111111111111111\n" +
 		"0031ACK 6ecf0ef2c2dffb796033e5a02219af86ec6584e5\n" +
@@ -111,9 +115,9 @@ func (s *ServerResponseSuite) TestDecodeMultiACK(c *C) {
 
 	sr := &ServerResponse{}
 	err := sr.Decode(bufio.NewReader(bytes.NewBufferString(raw)), true)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
-	c.Assert(sr.ACKs, HasLen, 2)
-	c.Assert(sr.ACKs[0], Equals, plumbing.NewHash("1111111111111111111111111111111111111111"))
-	c.Assert(sr.ACKs[1], Equals, plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5"))
+	s.Len(sr.ACKs, 2)
+	s.Equal(plumbing.NewHash("1111111111111111111111111111111111111111"), sr.ACKs[0])
+	s.Equal(plumbing.NewHash("6ecf0ef2c2dffb796033e5a02219af86ec6584e5"), sr.ACKs[1])
 }

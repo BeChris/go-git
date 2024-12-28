@@ -7,17 +7,18 @@ import (
 	"testing"
 
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
-
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/suite"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+type SidebandSuite struct {
+	suite.Suite
+}
 
-type SidebandSuite struct{}
+func TestSidebandSuite(t *testing.T) {
+	suite.Run(t, new(SidebandSuite))
+}
 
-var _ = Suite(&SidebandSuite{})
-
-func (s *SidebandSuite) TestDecode(c *C) {
+func (s *SidebandSuite) TestDecode() {
 	expected := []byte("abcdefghijklmnopqrstuvwxyz")
 
 	buf := bytes.NewBuffer(nil)
@@ -30,12 +31,12 @@ func (s *SidebandSuite) TestDecode(c *C) {
 	content := make([]byte, 26)
 	d := NewDemuxer(Sideband64k, buf)
 	n, err := io.ReadFull(d, content)
-	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 26)
-	c.Assert(content, DeepEquals, expected)
+	s.NoError(err)
+	s.Equal(26, n)
+	s.Equal(expected, content)
 }
 
-func (s *SidebandSuite) TestDecodeMoreThanContain(c *C) {
+func (s *SidebandSuite) TestDecodeMoreThanContain() {
 	expected := []byte("abcdefghijklmnopqrstuvwxyz")
 
 	buf := bytes.NewBuffer(nil)
@@ -45,12 +46,12 @@ func (s *SidebandSuite) TestDecodeMoreThanContain(c *C) {
 	content := make([]byte, 42)
 	d := NewDemuxer(Sideband64k, buf)
 	n, err := io.ReadFull(d, content)
-	c.Assert(err, Equals, io.ErrUnexpectedEOF)
-	c.Assert(n, Equals, 26)
-	c.Assert(content[0:26], DeepEquals, expected)
+	s.Equal(err, io.ErrUnexpectedEOF)
+	s.Equal(26, n)
+	s.Equal(expected, content[0:26])
 }
 
-func (s *SidebandSuite) TestDecodeWithError(c *C) {
+func (s *SidebandSuite) TestDecodeWithError() {
 	expected := []byte("abcdefghijklmnopqrstuvwxyz")
 
 	buf := bytes.NewBuffer(nil)
@@ -63,24 +64,24 @@ func (s *SidebandSuite) TestDecodeWithError(c *C) {
 	content := make([]byte, 26)
 	d := NewDemuxer(Sideband64k, buf)
 	n, err := io.ReadFull(d, content)
-	c.Assert(err, ErrorMatches, "unexpected error: FOO\n")
-	c.Assert(n, Equals, 8)
-	c.Assert(content[0:8], DeepEquals, expected[0:8])
+	s.ErrorContains(err, "unexpected error: FOO\n")
+	s.Equal(8, n)
+	s.Equal(expected[0:8], content[0:8])
 }
 
 type mockReader struct{}
 
 func (r *mockReader) Read([]byte) (int, error) { return 0, errors.New("foo") }
 
-func (s *SidebandSuite) TestDecodeFromFailingReader(c *C) {
+func (s *SidebandSuite) TestDecodeFromFailingReader() {
 	content := make([]byte, 26)
 	d := NewDemuxer(Sideband64k, &mockReader{})
 	n, err := io.ReadFull(d, content)
-	c.Assert(err, ErrorMatches, "foo")
-	c.Assert(n, Equals, 0)
+	s.ErrorContains(err, "foo")
+	s.Equal(0, n)
 }
 
-func (s *SidebandSuite) TestDecodeWithProgress(c *C) {
+func (s *SidebandSuite) TestDecodeWithProgress() {
 	expected := []byte("abcdefghijklmnopqrstuvwxyz")
 
 	input := bytes.NewBuffer(nil)
@@ -96,16 +97,16 @@ func (s *SidebandSuite) TestDecodeWithProgress(c *C) {
 	d.Progress = output
 
 	n, err := io.ReadFull(d, content)
-	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 26)
-	c.Assert(content, DeepEquals, expected)
+	s.NoError(err)
+	s.Equal(26, n)
+	s.Equal(expected, content)
 
 	progress, err := io.ReadAll(output)
-	c.Assert(err, IsNil)
-	c.Assert(progress, DeepEquals, []byte{'F', 'O', 'O', '\n'})
+	s.NoError(err)
+	s.Equal([]byte{'F', 'O', 'O', '\n'}, progress)
 }
 
-func (s *SidebandSuite) TestDecodeFlushEOF(c *C) {
+func (s *SidebandSuite) TestDecodeFlushEOF() {
 	expected := []byte("abcdefghijklmnopqrstuvwxyz")
 
 	input := bytes.NewBuffer(nil)
@@ -123,16 +124,16 @@ func (s *SidebandSuite) TestDecodeFlushEOF(c *C) {
 	d.Progress = output
 
 	n, err := content.ReadFrom(d)
-	c.Assert(err, IsNil)
-	c.Assert(n, Equals, int64(26))
-	c.Assert(content.Bytes(), DeepEquals, expected)
+	s.NoError(err)
+	s.Equal(int64(26), n)
+	s.Equal(expected, content.Bytes())
 
 	progress, err := io.ReadAll(output)
-	c.Assert(err, IsNil)
-	c.Assert(progress, DeepEquals, []byte{'F', 'O', 'O', '\n'})
+	s.NoError(err)
+	s.Equal([]byte{'F', 'O', 'O', '\n'}, progress)
 }
 
-func (s *SidebandSuite) TestDecodeWithUnknownChannel(c *C) {
+func (s *SidebandSuite) TestDecodeWithUnknownChannel() {
 	buf := bytes.NewBuffer(nil)
 	e := pktline.NewEncoder(buf)
 	e.Encode([]byte{'4', 'F', 'O', 'O', '\n'})
@@ -140,11 +141,11 @@ func (s *SidebandSuite) TestDecodeWithUnknownChannel(c *C) {
 	content := make([]byte, 26)
 	d := NewDemuxer(Sideband64k, buf)
 	n, err := io.ReadFull(d, content)
-	c.Assert(err, ErrorMatches, "unknown channel 4FOO\n")
-	c.Assert(n, Equals, 0)
+	s.ErrorContains(err, "unknown channel 4FOO\n")
+	s.Equal(0, n)
 }
 
-func (s *SidebandSuite) TestDecodeWithPending(c *C) {
+func (s *SidebandSuite) TestDecodeWithPending() {
 	expected := []byte("abcdefghijklmnopqrstuvwxyz")
 
 	buf := bytes.NewBuffer(nil)
@@ -156,17 +157,17 @@ func (s *SidebandSuite) TestDecodeWithPending(c *C) {
 	content := make([]byte, 13)
 	d := NewDemuxer(Sideband64k, buf)
 	n, err := io.ReadFull(d, content)
-	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 13)
-	c.Assert(content, DeepEquals, expected[0:13])
+	s.NoError(err)
+	s.Equal(13, n)
+	s.Equal(expected[0:13], content)
 
 	n, err = d.Read(content)
-	c.Assert(err, IsNil)
-	c.Assert(n, Equals, 13)
-	c.Assert(content, DeepEquals, expected[13:26])
+	s.NoError(err)
+	s.Equal(13, n)
+	s.Equal(expected[13:26], content)
 }
 
-func (s *SidebandSuite) TestDecodeErrMaxPacked(c *C) {
+func (s *SidebandSuite) TestDecodeErrMaxPacked() {
 	buf := bytes.NewBuffer(nil)
 	e := pktline.NewEncoder(buf)
 	e.Encode(PackData.WithPayload(bytes.Repeat([]byte{'0'}, MaxPackedSize+1)))
@@ -174,6 +175,6 @@ func (s *SidebandSuite) TestDecodeErrMaxPacked(c *C) {
 	content := make([]byte, 13)
 	d := NewDemuxer(Sideband, buf)
 	n, err := io.ReadFull(d, content)
-	c.Assert(err, Equals, ErrMaxPackedExceeded)
-	c.Assert(n, Equals, 0)
+	s.Equal(err, ErrMaxPackedExceeded)
+	s.Equal(0, n)
 }

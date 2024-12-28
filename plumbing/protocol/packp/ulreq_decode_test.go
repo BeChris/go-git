@@ -2,98 +2,103 @@ package packp
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"sort"
+	"testing"
 	"time"
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
 	"github.com/go-git/go-git/v5/plumbing/hash"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
-
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/suite"
 )
 
-type UlReqDecodeSuite struct{}
+type UlReqDecodeSuite struct {
+	suite.Suite
+}
 
-var _ = Suite(&UlReqDecodeSuite{})
+func TestUlReqDecodeSuite(t *testing.T) {
+	suite.Run(t, new(UlReqDecodeSuite))
+}
 
-func (s *UlReqDecodeSuite) TestEmpty(c *C) {
+func (s *UlReqDecodeSuite) TestEmpty() {
 	ur := NewUploadRequest()
 	var buf bytes.Buffer
 	d := newUlReqDecoder(&buf)
 
 	err := d.Decode(ur)
-	c.Assert(err, ErrorMatches, "pkt-line 1: EOF")
+	s.ErrorContains(err, "pkt-line 1: EOF")
 }
 
-func (s *UlReqDecodeSuite) TestNoWant(c *C) {
+func (s *UlReqDecodeSuite) TestNoWant() {
 	payloads := []string{
 		"foobar",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*missing 'want '.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "missing 'want '")
 }
 
-func (s *UlReqDecodeSuite) testDecoderErrorMatches(c *C, input io.Reader, pattern string) {
+func (s *UlReqDecodeSuite) testDecoderErrorMatches(input io.Reader, pattern string) {
 	ur := NewUploadRequest()
 	d := newUlReqDecoder(input)
 
 	err := d.Decode(ur)
-	c.Assert(err, ErrorMatches, pattern)
+	s.ErrorContains(err, pattern)
 }
 
-func (s *UlReqDecodeSuite) TestInvalidFirstHash(c *C) {
+func (s *UlReqDecodeSuite) TestInvalidFirstHash() {
 	payloads := []string{
 		"want 6ecf0ef2c2dffb796alberto2219af86ec6584e5\n",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*invalid hash.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "invalid hash")
 }
 
-func (s *UlReqDecodeSuite) TestWantOK(c *C) {
+func (s *UlReqDecodeSuite) TestWantOK() {
 	payloads := []string{
 		"want 1111111111111111111111111111111111111111",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
-	c.Assert(ur.Wants, DeepEquals, []plumbing.Hash{
+	s.Equal([]plumbing.Hash{
 		plumbing.NewHash("1111111111111111111111111111111111111111"),
-	})
+	}, ur.Wants)
 }
 
-func (s *UlReqDecodeSuite) testDecodeOK(c *C, payloads []string) *UploadRequest {
+func (s *UlReqDecodeSuite) testDecodeOK(payloads []string) *UploadRequest {
 	var buf bytes.Buffer
 	e := pktline.NewEncoder(&buf)
 	err := e.EncodeString(payloads...)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	ur := NewUploadRequest()
 	d := newUlReqDecoder(&buf)
 
 	err = d.Decode(ur)
-	c.Assert(err, IsNil)
+	s.NoError(err)
 
 	return ur
 }
 
-func (s *UlReqDecodeSuite) TestWantWithCapabilities(c *C) {
+func (s *UlReqDecodeSuite) TestWantWithCapabilities() {
 	payloads := []string{
 		"want 1111111111111111111111111111111111111111 ofs-delta multi_ack",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
-	c.Assert(ur.Wants, DeepEquals, []plumbing.Hash{
-		plumbing.NewHash("1111111111111111111111111111111111111111")})
+	ur := s.testDecodeOK(payloads)
+	s.Equal([]plumbing.Hash{
+		plumbing.NewHash("1111111111111111111111111111111111111111")}, ur.Wants)
 
-	c.Assert(ur.Capabilities.Supports(capability.OFSDelta), Equals, true)
-	c.Assert(ur.Capabilities.Supports(capability.MultiACK), Equals, true)
+	s.True(ur.Capabilities.Supports(capability.OFSDelta))
+	s.True(ur.Capabilities.Supports(capability.MultiACK))
 }
 
-func (s *UlReqDecodeSuite) TestManyWantsNoCapabilities(c *C) {
+func (s *UlReqDecodeSuite) TestManyWantsNoCapabilities() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333",
 		"want 4444444444444444444444444444444444444444",
@@ -101,7 +106,7 @@ func (s *UlReqDecodeSuite) TestManyWantsNoCapabilities(c *C) {
 		"want 2222222222222222222222222222222222222222",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
 	expected := []plumbing.Hash{
 		plumbing.NewHash("1111111111111111111111111111111111111111"),
@@ -112,7 +117,7 @@ func (s *UlReqDecodeSuite) TestManyWantsNoCapabilities(c *C) {
 
 	sort.Sort(byHash(ur.Wants))
 	sort.Sort(byHash(expected))
-	c.Assert(ur.Wants, DeepEquals, expected)
+	s.Equal(expected, ur.Wants)
 }
 
 type byHash []plumbing.Hash
@@ -125,7 +130,7 @@ func (a byHash) Less(i, j int) bool {
 	return bytes.Compare(ii[:], jj[:]) < 0
 }
 
-func (s *UlReqDecodeSuite) TestManyWantsBadWant(c *C) {
+func (s *UlReqDecodeSuite) TestManyWantsBadWant() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333",
 		"want 4444444444444444444444444444444444444444",
@@ -133,11 +138,11 @@ func (s *UlReqDecodeSuite) TestManyWantsBadWant(c *C) {
 		"want 2222222222222222222222222222222222222222",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*unexpected payload.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "unexpected payload")
 }
 
-func (s *UlReqDecodeSuite) TestManyWantsInvalidHash(c *C) {
+func (s *UlReqDecodeSuite) TestManyWantsInvalidHash() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333",
 		"want 4444444444444444444444444444444444444444",
@@ -145,11 +150,11 @@ func (s *UlReqDecodeSuite) TestManyWantsInvalidHash(c *C) {
 		"want 2222222222222222222222222222222222222222",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*malformed hash.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "malformed hash")
 }
 
-func (s *UlReqDecodeSuite) TestManyWantsWithCapabilities(c *C) {
+func (s *UlReqDecodeSuite) TestManyWantsWithCapabilities() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"want 4444444444444444444444444444444444444444",
@@ -157,7 +162,7 @@ func (s *UlReqDecodeSuite) TestManyWantsWithCapabilities(c *C) {
 		"want 2222222222222222222222222222222222222222",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
 	expected := []plumbing.Hash{
 		plumbing.NewHash("1111111111111111111111111111111111111111"),
@@ -168,19 +173,19 @@ func (s *UlReqDecodeSuite) TestManyWantsWithCapabilities(c *C) {
 
 	sort.Sort(byHash(ur.Wants))
 	sort.Sort(byHash(expected))
-	c.Assert(ur.Wants, DeepEquals, expected)
+	s.Equal(expected, ur.Wants)
 
-	c.Assert(ur.Capabilities.Supports(capability.OFSDelta), Equals, true)
-	c.Assert(ur.Capabilities.Supports(capability.MultiACK), Equals, true)
+	s.True(ur.Capabilities.Supports(capability.OFSDelta))
+	s.True(ur.Capabilities.Supports(capability.MultiACK))
 }
 
-func (s *UlReqDecodeSuite) TestSingleShallowSingleWant(c *C) {
+func (s *UlReqDecodeSuite) TestSingleShallowSingleWant() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"shallow aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
 	expectedWants := []plumbing.Hash{
 		plumbing.NewHash("3333333333333333333333333333333333333333"),
@@ -190,14 +195,14 @@ func (s *UlReqDecodeSuite) TestSingleShallowSingleWant(c *C) {
 		plumbing.NewHash("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 	}
 
-	c.Assert(ur.Wants, DeepEquals, expectedWants)
-	c.Assert(ur.Capabilities.Supports(capability.OFSDelta), Equals, true)
-	c.Assert(ur.Capabilities.Supports(capability.MultiACK), Equals, true)
+	s.Equal(expectedWants, ur.Wants)
+	s.True(ur.Capabilities.Supports(capability.OFSDelta))
+	s.True(ur.Capabilities.Supports(capability.MultiACK))
 
-	c.Assert(ur.Shallows, DeepEquals, expectedShallows)
+	s.Equal(expectedShallows, ur.Shallows)
 }
 
-func (s *UlReqDecodeSuite) TestSingleShallowManyWants(c *C) {
+func (s *UlReqDecodeSuite) TestSingleShallowManyWants() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"want 4444444444444444444444444444444444444444",
@@ -206,7 +211,7 @@ func (s *UlReqDecodeSuite) TestSingleShallowManyWants(c *C) {
 		"shallow aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
 	expectedWants := []plumbing.Hash{
 		plumbing.NewHash("1111111111111111111111111111111111111111"),
@@ -221,14 +226,14 @@ func (s *UlReqDecodeSuite) TestSingleShallowManyWants(c *C) {
 	}
 
 	sort.Sort(byHash(ur.Wants))
-	c.Assert(ur.Wants, DeepEquals, expectedWants)
-	c.Assert(ur.Capabilities.Supports(capability.OFSDelta), Equals, true)
-	c.Assert(ur.Capabilities.Supports(capability.MultiACK), Equals, true)
+	s.Equal(expectedWants, ur.Wants)
+	s.True(ur.Capabilities.Supports(capability.OFSDelta))
+	s.True(ur.Capabilities.Supports(capability.MultiACK))
 
-	c.Assert(ur.Shallows, DeepEquals, expectedShallows)
+	s.Equal(expectedShallows, ur.Shallows)
 }
 
-func (s *UlReqDecodeSuite) TestManyShallowSingleWant(c *C) {
+func (s *UlReqDecodeSuite) TestManyShallowSingleWant() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"shallow aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -237,7 +242,7 @@ func (s *UlReqDecodeSuite) TestManyShallowSingleWant(c *C) {
 		"shallow dddddddddddddddddddddddddddddddddddddddd",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
 	expectedWants := []plumbing.Hash{
 		plumbing.NewHash("3333333333333333333333333333333333333333"),
@@ -251,15 +256,15 @@ func (s *UlReqDecodeSuite) TestManyShallowSingleWant(c *C) {
 	}
 	sort.Sort(byHash(expectedShallows))
 
-	c.Assert(ur.Wants, DeepEquals, expectedWants)
-	c.Assert(ur.Capabilities.Supports(capability.OFSDelta), Equals, true)
-	c.Assert(ur.Capabilities.Supports(capability.MultiACK), Equals, true)
+	s.Equal(expectedWants, ur.Wants)
+	s.True(ur.Capabilities.Supports(capability.OFSDelta))
+	s.True(ur.Capabilities.Supports(capability.MultiACK))
 
 	sort.Sort(byHash(ur.Shallows))
-	c.Assert(ur.Shallows, DeepEquals, expectedShallows)
+	s.Equal(expectedShallows, ur.Shallows)
 }
 
-func (s *UlReqDecodeSuite) TestManyShallowManyWants(c *C) {
+func (s *UlReqDecodeSuite) TestManyShallowManyWants() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"want 4444444444444444444444444444444444444444",
@@ -271,7 +276,7 @@ func (s *UlReqDecodeSuite) TestManyShallowManyWants(c *C) {
 		"shallow dddddddddddddddddddddddddddddddddddddddd",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
 	expectedWants := []plumbing.Hash{
 		plumbing.NewHash("1111111111111111111111111111111111111111"),
@@ -290,35 +295,35 @@ func (s *UlReqDecodeSuite) TestManyShallowManyWants(c *C) {
 	sort.Sort(byHash(expectedShallows))
 
 	sort.Sort(byHash(ur.Wants))
-	c.Assert(ur.Wants, DeepEquals, expectedWants)
-	c.Assert(ur.Capabilities.Supports(capability.OFSDelta), Equals, true)
-	c.Assert(ur.Capabilities.Supports(capability.MultiACK), Equals, true)
+	s.Equal(expectedWants, ur.Wants)
+	s.True(ur.Capabilities.Supports(capability.OFSDelta))
+	s.True(ur.Capabilities.Supports(capability.MultiACK))
 
 	sort.Sort(byHash(ur.Shallows))
-	c.Assert(ur.Shallows, DeepEquals, expectedShallows)
+	s.Equal(expectedShallows, ur.Shallows)
 }
 
-func (s *UlReqDecodeSuite) TestMalformedShallow(c *C) {
+func (s *UlReqDecodeSuite) TestMalformedShallow() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"shalow aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*unexpected payload.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "unexpected payload")
 }
 
-func (s *UlReqDecodeSuite) TestMalformedShallowHash(c *C) {
+func (s *UlReqDecodeSuite) TestMalformedShallowHash() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"shallow aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*malformed hash.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "malformed hash")
 }
 
-func (s *UlReqDecodeSuite) TestMalformedShallowManyShallows(c *C) {
+func (s *UlReqDecodeSuite) TestMalformedShallowManyShallows() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"shallow aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -326,53 +331,53 @@ func (s *UlReqDecodeSuite) TestMalformedShallowManyShallows(c *C) {
 		"shallow cccccccccccccccccccccccccccccccccccccccc",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*unexpected payload.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "unexpected payload")
 }
 
-func (s *UlReqDecodeSuite) TestMalformedDeepenSpec(c *C) {
+func (s *UlReqDecodeSuite) TestMalformedDeepenSpec() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"deepen-foo 34",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*unexpected deepen.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "unexpected deepen")
 }
 
-func (s *UlReqDecodeSuite) TestMalformedDeepenSingleWant(c *C) {
+func (s *UlReqDecodeSuite) TestMalformedDeepenSingleWant() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"depth 32",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*unexpected payload.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "unexpected payload")
 }
 
-func (s *UlReqDecodeSuite) TestMalformedDeepenMultiWant(c *C) {
+func (s *UlReqDecodeSuite) TestMalformedDeepenMultiWant() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"want 2222222222222222222222222222222222222222",
 		"depth 32",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*unexpected payload.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "unexpected payload")
 }
 
-func (s *UlReqDecodeSuite) TestMalformedDeepenWithSingleShallow(c *C) {
+func (s *UlReqDecodeSuite) TestMalformedDeepenWithSingleShallow() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"shallow 2222222222222222222222222222222222222222",
 		"depth 32",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*unexpected payload.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "unexpected payload")
 }
 
-func (s *UlReqDecodeSuite) TestMalformedDeepenWithMultiShallow(c *C) {
+func (s *UlReqDecodeSuite) TestMalformedDeepenWithMultiShallow() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"shallow 2222222222222222222222222222222222222222",
@@ -380,105 +385,105 @@ func (s *UlReqDecodeSuite) TestMalformedDeepenWithMultiShallow(c *C) {
 		"depth 32",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*unexpected payload.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "unexpected payload")
 }
 
-func (s *UlReqDecodeSuite) TestDeepenCommits(c *C) {
+func (s *UlReqDecodeSuite) TestDeepenCommits() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"deepen 1234",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
-	c.Assert(ur.Depth, FitsTypeOf, DepthCommits(0))
+	s.IsType(DepthCommits(0), ur.Depth)
 	commits, ok := ur.Depth.(DepthCommits)
-	c.Assert(ok, Equals, true)
-	c.Assert(int(commits), Equals, 1234)
+	s.True(ok)
+	s.Equal(1234, int(commits))
 }
 
-func (s *UlReqDecodeSuite) TestDeepenCommitsInfiniteImplicit(c *C) {
+func (s *UlReqDecodeSuite) TestDeepenCommitsInfiniteImplicit() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"deepen 0",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
-	c.Assert(ur.Depth, FitsTypeOf, DepthCommits(0))
+	s.IsType(DepthCommits(0), ur.Depth)
 	commits, ok := ur.Depth.(DepthCommits)
-	c.Assert(ok, Equals, true)
-	c.Assert(int(commits), Equals, 0)
+	s.True(ok)
+	s.Equal(0, int(commits))
 }
 
-func (s *UlReqDecodeSuite) TestDeepenCommitsInfiniteExplicit(c *C) {
+func (s *UlReqDecodeSuite) TestDeepenCommitsInfiniteExplicit() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
-	c.Assert(ur.Depth, FitsTypeOf, DepthCommits(0))
+	s.IsType(DepthCommits(0), ur.Depth)
 	commits, ok := ur.Depth.(DepthCommits)
-	c.Assert(ok, Equals, true)
-	c.Assert(int(commits), Equals, 0)
+	s.True(ok)
+	s.Equal(0, int(commits))
 }
 
-func (s *UlReqDecodeSuite) TestMalformedDeepenCommits(c *C) {
+func (s *UlReqDecodeSuite) TestMalformedDeepenCommits() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"deepen -32",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*negative depth.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "negative depth")
 }
 
-func (s *UlReqDecodeSuite) TestDeepenCommitsEmpty(c *C) {
+func (s *UlReqDecodeSuite) TestDeepenCommitsEmpty() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"deepen ",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*invalid syntax.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "invalid syntax")
 }
 
-func (s *UlReqDecodeSuite) TestDeepenSince(c *C) {
+func (s *UlReqDecodeSuite) TestDeepenSince() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"deepen-since 1420167845", // 2015-01-02T03:04:05+00:00
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
 	expected := time.Date(2015, time.January, 2, 3, 4, 5, 0, time.UTC)
 
-	c.Assert(ur.Depth, FitsTypeOf, DepthSince(time.Now()))
+	s.IsType(DepthSince(time.Now()), ur.Depth)
 	since, ok := ur.Depth.(DepthSince)
-	c.Assert(ok, Equals, true)
-	c.Assert(time.Time(since).Equal(expected), Equals, true,
-		Commentf("obtained=%s\nexpected=%s", time.Time(since), expected))
+	s.True(ok)
+	s.True(time.Time(since).Equal(expected),
+		fmt.Sprintf("obtained=%s\nexpected=%s", time.Time(since), expected))
 }
 
-func (s *UlReqDecodeSuite) TestDeepenReference(c *C) {
+func (s *UlReqDecodeSuite) TestDeepenReference() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"deepen-not refs/heads/master",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
 	expected := "refs/heads/master"
 
-	c.Assert(ur.Depth, FitsTypeOf, DepthReference(""))
+	s.IsType(DepthReference(""), ur.Depth)
 	reference, ok := ur.Depth.(DepthReference)
-	c.Assert(ok, Equals, true)
-	c.Assert(string(reference), Equals, expected)
+	s.True(ok)
+	s.Equal(expected, string(reference))
 }
 
-func (s *UlReqDecodeSuite) TestAll(c *C) {
+func (s *UlReqDecodeSuite) TestAll() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"want 4444444444444444444444444444444444444444",
@@ -491,7 +496,7 @@ func (s *UlReqDecodeSuite) TestAll(c *C) {
 		"deepen 1234",
 		pktline.FlushString,
 	}
-	ur := s.testDecodeOK(c, payloads)
+	ur := s.testDecodeOK(payloads)
 
 	expectedWants := []plumbing.Hash{
 		plumbing.NewHash("1111111111111111111111111111111111111111"),
@@ -501,9 +506,9 @@ func (s *UlReqDecodeSuite) TestAll(c *C) {
 	}
 	sort.Sort(byHash(expectedWants))
 	sort.Sort(byHash(ur.Wants))
-	c.Assert(ur.Wants, DeepEquals, expectedWants)
-	c.Assert(ur.Capabilities.Supports(capability.OFSDelta), Equals, true)
-	c.Assert(ur.Capabilities.Supports(capability.MultiACK), Equals, true)
+	s.Equal(expectedWants, ur.Wants)
+	s.True(ur.Capabilities.Supports(capability.OFSDelta))
+	s.True(ur.Capabilities.Supports(capability.MultiACK))
 
 	expectedShallows := []plumbing.Hash{
 		plumbing.NewHash("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
@@ -513,21 +518,21 @@ func (s *UlReqDecodeSuite) TestAll(c *C) {
 	}
 	sort.Sort(byHash(expectedShallows))
 	sort.Sort(byHash(ur.Shallows))
-	c.Assert(ur.Shallows, DeepEquals, expectedShallows)
+	s.Equal(expectedShallows, ur.Shallows)
 
-	c.Assert(ur.Depth, FitsTypeOf, DepthCommits(0))
+	s.IsType(DepthCommits(0), ur.Depth)
 	commits, ok := ur.Depth.(DepthCommits)
-	c.Assert(ok, Equals, true)
-	c.Assert(int(commits), Equals, 1234)
+	s.True(ok)
+	s.Equal(1234, int(commits))
 }
 
-func (s *UlReqDecodeSuite) TestExtraData(c *C) {
+func (s *UlReqDecodeSuite) TestExtraData() {
 	payloads := []string{
 		"want 3333333333333333333333333333333333333333 ofs-delta multi_ack",
 		"deepen 32",
 		"foo",
 		pktline.FlushString,
 	}
-	r := toPktLines(c, payloads)
-	s.testDecoderErrorMatches(c, r, ".*unexpected payload.*")
+	r := toPktLines(s.T(), payloads)
+	s.testDecoderErrorMatches(r, "unexpected payload")
 }
