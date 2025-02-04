@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 )
 
 // A FileMode represents the kind of tree entries used by git. It
@@ -46,6 +47,12 @@ const (
 	Submodule FileMode = 0160000
 )
 
+var (
+	configOnce sync.Once
+
+	trust_executable_bit bool
+)
+
 // New takes the octal string representation of a FileMode and returns
 // the FileMode and a nil error.  If the string can not be parsed to a
 // 32 bit unsigned octal number, it returns Empty and the parsing error.
@@ -73,6 +80,28 @@ func New(s string) (FileMode, error) {
 // Deprecated and Submodule; while Empty will be returned, along with an
 // error, only when the method fails.
 func NewFromOSFileMode(m os.FileMode) (FileMode, error) {
+	configOnce.Do(func() {
+		f, err := os.CreateTemp("", "trust_executable_bit")
+		if err != nil {
+			return
+		}
+		defer os.Remove(f.Name())
+
+		originalFileMode, err := os.Stat(f.Name())
+		if err != nil {
+			return
+		}
+
+		os.Chmod(f.Name(), originalFileMode.Mode()^0100)
+
+		newFileMode, err := os.Stat(f.Name())
+		if err != nil {
+			return
+		}
+
+		trust_executable_bit = newFileMode.Mode()&0100 != 0
+	})
+
 	if m.IsRegular() {
 		if isSetTemporary(m) {
 			return Empty, fmt.Errorf("no equivalent git mode for %s", m)
@@ -80,7 +109,7 @@ func NewFromOSFileMode(m os.FileMode) (FileMode, error) {
 		if isSetCharDevice(m) {
 			return Empty, fmt.Errorf("no equivalent git mode for %s", m)
 		}
-		if isSetUserExecutable(m) {
+		if isSetUserExecutable(m) && trust_executable_bit {
 			return Executable, nil
 		}
 		return Regular, nil
